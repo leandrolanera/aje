@@ -1,0 +1,510 @@
+/*
+ * Identidade visual — ver IDENTIDADE-VISUAL.md.
+ * Adaptação do IDENTIDADE-VISUAL-BASE.md do CAMPINHO. A estrutura da paleta
+ * (três superfícies + acentos que só vivem no escuro) e a tipografia em duas
+ * famílias contrastantes vêm da base; os matizes são próprios, em sépia.
+ *
+ * TEMA ÚNICO, HÍBRIDO (base §3): a moldura do app é escura, o conteúdo vem em
+ * fichas creme. É a metáfora do livro-caixa: capa de couro, papel dentro.
+ * Não há modo claro/escuro — os dois temas que existiam aqui saíram de
+ * propósito: dobravam o custo de toda decisão de cor e de todo teste de
+ * contraste em troca de uma preferência que ninguém pediu.
+ *
+ * A REGRA DA COR (base §4, medida e não estimada): acento é cor da moldura
+ * escura; dentro da ficha creme a tinta é preta. Cor viva sobre creme só como
+ * preenchimento (etiqueta, filete, barra), nunca como texto.
+ */
+
+/*
+ * Só os subsets que o pt-BR usa. O pacote completo do Oswald traz cirílico e
+ * vietnamita — o browser não baixaria (unicode-range), mas iriam no deploy à
+ * toa. Auto-hospedadas, não por CDN (base §5): uma requisição a terceiro na
+ * primeira pintura é o item mais lento de uma tela leve, e esta tela é leve.
+ */
+@font-face{font-family:Figtree;font-style:normal;font-weight:400 700;font-display:swap;src:url(fonts/figtree-latin.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:Figtree;font-style:normal;font-weight:400 700;font-display:swap;src:url(fonts/figtree-latin-ext.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:Oswald;font-style:normal;font-weight:500 700;font-display:swap;src:url(fonts/oswald-latin.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:Oswald;font-style:normal;font-weight:500 700;font-display:swap;src:url(fonts/oswald-latin-ext.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+
+:root{
+  color-scheme:dark;
+
+  /* Superfícies. Tudo a ~10° do creme: fundo 30°, elevado 33°, creme 40° —
+     distância de cores análogas, que é o que faz a tela fechar. Os nomes são
+     semânticos, não literais, justamente para sobreviver a uma troca de matiz. */
+  --fundo:#14100b;
+  --elevado:#453726;
+  --creme:#f2e9d8;
+
+  /* Tinta, por superfície. */
+  --tinta-escuro:#f2e9d8;
+  --apagado-escuro:#b3a68f;
+  --tinta-card:#141210;
+  --apagado-card:#6b6350;
+  /* Filete no papel: separador, nunca texto (1,33 sobre o creme). */
+  --linha-card:#d8cbb0;
+  --linha-escuro:color-mix(in srgb,var(--apagado-escuro) 28%,transparent);
+
+  /* Acento da marca, o âmbar do livro-caixa. Vive sobre as superfícies escuras
+     como tinta (saldo, item de menu atual) ou como preenchimento com tinta
+     escura por cima (botão primário, FAB). */
+  --acento:#e0b43c;
+
+  /*
+   * ENTRA e SAI são o par que este app não pode deixar ambíguo — num app de
+   * dinheiro eles importam mais que qualquer categoria. Por isso têm quatro
+   * tokens, não dois: os vivos para a moldura escura, os de tinta para dentro
+   * da ficha. A saída de emergência da base §4 ("crie versões escuras
+   * separadas") aqui é regra, não exceção.
+   *
+   * E a cor nunca carrega o sinal sozinha: o + e o − estão sempre no número, e
+   * o previsto se distingue por filete tracejado, não por matiz. Vermelho e
+   * verde não sobrevivem ao daltonismo mais comum.
+   */
+  --entra:#6ecb93;
+  --sai:#f08a72;
+  --entra-tinta:#1f6b43;
+  --sai-tinta:#a3372a;
+
+  --display:Oswald,"Arial Narrow",ui-sans-serif,system-ui,sans-serif;
+  --texto:Figtree,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+
+  /* Cantos quase retos e sombra deslocada e dura: é impressão sobre papel, não
+     elevação de material. Um raio grande devolve o app ao registro de "componente
+     de interface", que é exatamente o que a ficha não quer ser (base §6). */
+  --raio:3px;
+  --sombra:4px 4px 0 rgba(0,0,0,.4);
+  --sombra-leve:2px 2px 0 rgba(0,0,0,.3);
+
+  /* Recuo lateral único da moldura. É variável porque já divergiu em projeto
+     irmão, e alguns pixels de diferença parecem erro de renderização. */
+  --margem:clamp(16px,3vw,32px);
+}
+
+*{box-sizing:border-box}
+html,body{background:var(--fundo)}
+body{
+  margin:0;
+  color:var(--tinta-escuro);
+  font-family:var(--texto);
+  font-size:15px;
+  line-height:1.45;
+  padding:20px var(--margem) 28px;
+  -webkit-font-smoothing:antialiased;
+  /* Textura de impressão (base §7): grão em gradiente repetido, zero bytes de
+     imagem. É aqui que se quebra a promessa de leveza sem perceber. */
+  background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.014) 0,rgba(255,255,255,.014) 1px,transparent 1px,transparent 3px);
+}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--acento);outline-offset:2px}
+
+/* Display condensada, só em caixa alta e em bloco curto (base §5). Nunca em
+   texto corrido, por mais que caiba. */
+h1,h2,h3,.placar-v,.kpi .v,.acc .big,.big-in{
+  font-family:var(--display);
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:.005em;
+  margin:0;
+}
+/* Dinheiro é coluna: os algarismos precisam ter largura igual ou a vírgula
+   dança de linha para linha. Foi por isto que a display é Oswald e não Anton. */
+.num,.placar-v,.kpi .v,.acc .big,.rval,td,.big-in{font-variant-numeric:tabular-nums}
+/* Valor em dinheiro não é rótulo: a caixa alta da display não se aplica a ele
+   (não há o que caixa-altar em "R$ 4.312,80", e o `uppercase` mexeria no R$). */
+.placar-v,.kpi .v,.acc .big,.big-in{text-transform:none}
+
+/* Chapéu: rótulo curto, caixa alta, tracking aberto. O padrão de rótulo dos
+   projetos irmãos, e o que sustenta a hierarquia sem precisar de peso. */
+.chapeu,.kpi .l,.lbl,.placar-l,.dia-l{
+  font-family:var(--texto);
+  font-size:.7rem;
+  font-weight:600;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+}
+
+/* ---------- moldura ---------- */
+.shell{display:grid;grid-template-columns:184px minmax(0,1fr);gap:32px;max-width:1240px;margin:0 auto;align-items:start}
+.side{position:sticky;top:env(safe-area-inset-top,0px);display:flex;flex-direction:column;gap:24px;padding-top:4px}
+.brand{
+  font-family:var(--display);font-weight:700;font-size:1.5rem;line-height:1;
+  letter-spacing:-.01em;text-transform:uppercase;color:var(--acento);
+  display:flex;align-items:center;gap:9px;
+}
+.brand i{width:26px;height:26px;flex:none;display:grid;place-items:center;background:var(--acento);border-radius:2px}
+.brand i svg{width:16px;height:16px;stroke:var(--fundo);fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.nav{display:flex;flex-direction:column;gap:1px}
+.nav button{
+  display:flex;align-items:center;gap:10px;background:none;border:0;
+  padding:8px 10px;border-radius:2px;color:var(--apagado-escuro);
+  font-size:.8rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;text-align:left;
+}
+.nav button svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.nav button:hover{color:var(--tinta-escuro)}
+.nav .sh{display:none}
+/* O item atual ganha filete além da cor: a diferença tem de sobreviver ao
+   daltonismo e a um monitor mal calibrado. */
+.nav button[aria-current="page"]{color:var(--acento);box-shadow:inset 3px 0 0 var(--acento);background:color-mix(in srgb,var(--acento) 10%,transparent)}
+.sync{font-size:.72rem;letter-spacing:.06em;color:var(--apagado-escuro);display:flex;align-items:center;gap:7px;padding:0 10px}
+.sync i{width:7px;height:7px;border-radius:50%;background:var(--apagado-escuro);flex:none}
+.sync[data-s="ok"] i{background:var(--entra)}
+.sync[data-s="err"] i{background:var(--sai)}
+.sync[data-s="busy"] i{background:var(--acento)}
+
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;margin-bottom:20px}
+.top h1{font-size:clamp(1.6rem,4vw,2.1rem);line-height:1;letter-spacing:-.01em;text-wrap:balance}
+.top .grow{flex:1 1 20px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+/* Seletor de mês: fica na moldura escura, então é contorno, não caixa clara. */
+.monthsw{display:flex;align-items:center;background:var(--elevado);border-radius:var(--raio);overflow:hidden}
+.monthsw button{background:none;border:0;padding:8px 11px;color:var(--apagado-escuro);display:grid;place-items:center}
+.monthsw button:hover{color:var(--acento)}
+.monthsw button svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.monthsw span{
+  min-width:136px;text-align:center;padding:0 4px;
+  font-family:var(--display);font-weight:500;font-size:.95rem;
+  letter-spacing:.04em;text-transform:uppercase;
+}
+.btn{
+  border:1px solid color-mix(in srgb,var(--apagado-escuro) 50%,transparent);
+  background:transparent;border-radius:var(--raio);padding:8px 14px;
+  font-size:.85rem;font-weight:600;color:var(--tinta-escuro);
+}
+.btn:hover{border-color:var(--acento);color:var(--acento)}
+.btn.primary{background:var(--acento);border-color:var(--acento);color:var(--fundo)}
+.btn.primary:hover{background:var(--acento);color:var(--fundo);filter:brightness(1.1)}
+/* Destrutivo só ganha cor quando está armado — no repouso ele não pode chamar
+   atenção, é saída de emergência e não ação do fluxo. */
+.btn.danger{color:var(--apagado-escuro)}
+.btn.danger:hover{border-color:var(--sai);color:var(--sai)}
+.btn.danger.armed{background:var(--sai);border-color:var(--sai);color:var(--fundo)}
+.btn.sm{padding:5px 10px;font-size:.78rem}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+.btn[disabled]:hover{border-color:color-mix(in srgb,var(--apagado-escuro) 50%,transparent);color:var(--tinta-escuro)}
+select.field,input.field{
+  background:var(--elevado);border:1px solid transparent;border-radius:var(--raio);
+  padding:8px 11px;min-width:0;color:var(--tinta-escuro);font-size:.9rem;
+}
+select.field:focus,input.field:focus{border-color:var(--acento);outline:none}
+
+.banner{
+  display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;
+  border-left:4px solid var(--acento);background:color-mix(in srgb,var(--acento) 9%,transparent);
+  padding:11px 14px;margin-bottom:18px;font-size:.88rem;
+}
+.banner span{flex:1 1 220px}
+/* Texto explicativo que fica na MOLDURA, fora da ficha. Existe separado de
+   `.sub` porque as duas tintas apagadas não são intercambiáveis: `--apagado-card`
+   aqui daria 1,9 sobre o fundo, e `--apagado-escuro` dentro da ficha daria 1,8.
+   Uma classe só para os dois casos é exatamente como nasce o erro §12.1. */
+.nota{margin:0 0 12px;font-size:.85rem;color:var(--apagado-escuro);max-width:62ch}
+
+/* ---------- o placar: o saldo (base §2.2) ----------
+   O saldo é o nome do app e a única razão de alguém abrir isto. Fica na moldura
+   escura, em âmbar e em corpo muito maior do que a hierarquia "correta" pediria
+   — é placar de estádio, não linha de tabela. Deliberadamente NÃO é ficha
+   creme: não é um fato do mês, é o número que tudo o mais explica. */
+.placar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 40px;margin:0 0 22px}
+.placar-b{display:flex;flex-direction:column;min-width:0}
+.placar-v{
+  font-size:clamp(2.6rem,9vw,4.25rem);
+  /* Tight só no número; o rótulo tem a própria caixa, senão corta a descida. */
+  line-height:.85;
+  letter-spacing:-.015em;
+  color:var(--acento);
+  /* Valor em BRL é string longa; no celular o que não pode é quebrar linha. */
+  white-space:nowrap;
+}
+.placar-l{margin-top:.5rem;color:var(--apagado-escuro);line-height:1}
+/* Os secundários dividem o placar com o saldo, mas não empatam com ele:
+   hierarquia, não competição. Corpo menor e tinta normal, nunca o âmbar. */
+.placar-b.sec .placar-v{font-size:clamp(1.3rem,4.5vw,1.9rem);color:var(--tinta-escuro)}
+.placar-b.sec .placar-v.baixo{color:var(--sai)}
+
+/* ---------- a ficha: o objeto (base §2.1 e §6) ----------
+   Papel creme, tinta preta, sombra dura e deslocada. Tem de ter personalidade
+   vista sozinha, fora da tela. */
+.panel,.kpi,.dia,.rows,.tablewrap,.acc,.empty,.sheet{
+  background:var(--creme);
+  color:var(--tinta-card);
+  border-radius:var(--raio);
+  box-shadow:var(--sombra);
+}
+.panel{padding:18px;margin-bottom:16px;min-width:0}
+.panel h2{font-size:1.1rem;letter-spacing:.02em;margin-bottom:2px}
+.panel .sub,.sub{color:var(--apagado-card);font-size:.82rem;margin:0 0 12px}
+.panelhead{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;align-items:flex-end;margin-bottom:10px}
+/* Dentro da ficha toda tinta secundária é escura — o âmbar aqui daria 2,1. */
+.panel .lbl,.kpi .l,.acc .lbl{color:var(--apagado-card)}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:16px}
+.kpi{padding:14px 16px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.kpi .v{font-size:1.6rem;line-height:1.1;letter-spacing:-.01em;overflow-wrap:anywhere}
+.kpi .s{font-size:.8rem;color:var(--apagado-card)}
+/* Barra de progresso: cor como preenchimento sobre o papel, que é o único uso
+   de cor viva permitido dentro da ficha. */
+.kpi .bar,.catrow .bar{height:6px;border-radius:1px;background:color-mix(in srgb,var(--tinta-card) 9%,transparent);overflow:hidden;margin-top:5px}
+.kpi .bar b,.catrow .bar b{display:block;height:100%}
+/* `.pos`/`.neg` aparecem nos dois lados da metáfora, então resolvem por
+   contexto: dentro da ficha vale a tinta escura, na moldura o vivo. */
+.pos{color:var(--entra-tinta)}
+.neg{color:var(--sai-tinta)}
+.side .pos,.top .pos,.placar .pos,.banner .pos{color:var(--entra)}
+.side .neg,.top .neg,.placar .neg,.banner .neg{color:var(--sai)}
+
+/* ---------- gráfico ----------
+   Registro de livro-caixa: o realizado é tinta cheia, o previsto é a mesma
+   tinta tracejada. O previsto NÃO muda de matiz, muda de traço — assim a
+   distinção sobrevive ao daltonismo e à impressão em preto e branco. */
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.78rem;color:var(--apagado-card)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:18px;height:0;border-top:2.5px solid var(--tinta-card)}
+.legend i.d{border-top:2px dashed var(--apagado-card)}
+.legend i.dot{width:8px;height:8px;border:0;border-radius:50%;background:var(--sai-tinta)}
+#chart{position:relative;min-height:200px}
+#chart svg{display:block;touch-action:pan-y;max-width:100%}
+.c-grid{stroke:var(--linha-card);stroke-width:1}
+.c-zero{stroke:var(--apagado-card);stroke-width:1.2}
+.c-tick{fill:var(--apagado-card);font-size:11px;font-family:var(--texto);font-variant-numeric:tabular-nums}
+.c-area{fill:var(--tinta-card);fill-opacity:.07}
+.c-proj{fill:none;stroke:var(--apagado-card);stroke-width:2;stroke-dasharray:5 5;stroke-linejoin:round}
+.c-real{fill:none;stroke:var(--tinta-card);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.c-neg{fill:var(--sai-tinta);stroke:var(--creme);stroke-width:1.5}
+.c-today{stroke:var(--apagado-card);stroke-width:1;stroke-dasharray:2 3}
+.c-todaylbl{fill:var(--apagado-card);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.c-cross{stroke:var(--tinta-card);stroke-width:1}
+.c-dot{fill:var(--tinta-card);stroke:var(--creme);stroke-width:2}
+/* O balão inverte para a moldura: sobre o papel ele precisa se destacar do
+   papel, e escuro sobre claro é o contraste que sobra. */
+.tip{
+  position:absolute;top:6px;pointer-events:none;z-index:2;
+  background:var(--elevado);color:var(--tinta-escuro);
+  border-left:3px solid var(--acento);border-radius:2px;
+  padding:7px 10px;font-size:.78rem;line-height:1.5;white-space:nowrap;
+  box-shadow:var(--sombra-leve);font-variant-numeric:tabular-nums;
+}
+.tip b{font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start}
+.two .panel{margin-bottom:0}
+.catrow{display:grid;grid-template-columns:1fr auto;gap:3px 12px;padding:7px 0}
+.catrow .n{display:flex;align-items:center;gap:8px;min-width:0;font-weight:600;font-size:.88rem}
+.catrow .n span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.catrow .bar{grid-column:1/-1}
+.catrow .pct{color:var(--apagado-card)}
+/* Cor de categoria: preenchimento de forma, nunca texto. É o filete e o ponto. */
+.dot{width:10px;height:10px;flex:none;display:inline-block;border-radius:1px}
+
+.seg{display:inline-flex;background:var(--elevado);border-radius:var(--raio);padding:3px;gap:2px}
+.seg button{
+  border:0;background:none;border-radius:2px;padding:6px 12px;
+  font-size:.78rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--apagado-escuro);
+}
+.seg button:hover{color:var(--tinta-escuro)}
+.seg button[aria-pressed="true"]{background:var(--acento);color:var(--fundo)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:center}
+.filters input.field{flex:1 1 160px}
+
+/* ---------- o dia como ficha ----------
+   Um dia é uma página do livro-caixa: cabeçalho com a data e o saldo, filete,
+   e os lançamentos embaixo. Era um cabeçalho solto acima de uma caixa; virou um
+   objeto só, que é o que dá ao dia o peso que ele tem na tese do app. */
+.dia{margin-bottom:14px;overflow:hidden}
+.diahead{
+  display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;align-items:baseline;
+  padding:11px 16px 9px;border-bottom:1px solid var(--linha-card);
+}
+.dia-l{color:var(--tinta-card)}
+.diahead .bal{font-size:.8rem;color:var(--apagado-card);font-variant-numeric:tabular-nums}
+.diahead .bal b{font-weight:700}
+.diahead .today{
+  background:var(--tinta-card);color:var(--creme);border-radius:1px;
+  padding:1px 6px;font-size:.62rem;margin-left:7px;letter-spacing:.14em;
+}
+/* `.rows` solto (próximos vencimentos) também é ficha; dentro de `.dia` ele já
+   está no papel, então não repete fundo nem sombra. */
+.dia .rows{background:none;box-shadow:none;border-radius:0}
+.row{
+  --cor-cat:var(--apagado-card);
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;
+  padding:10px 16px 10px 13px;border-top:1px solid var(--linha-card);cursor:pointer;
+  border-left:3px solid var(--cor-cat);
+}
+.rows>.row:first-child{border-top:0}
+.row:hover{background:color-mix(in srgb,var(--tinta-card) 5%,transparent)}
+/* Previsto se distingue por TRAÇO, não por matiz nem por opacidade: filete
+   tracejado e tinta apagada. Opacidade rebaixava o contraste do valor junto. */
+.row.plan{border-left-style:dashed}
+.row.plan .rdesc{color:var(--apagado-card)}
+.chk{
+  width:24px;height:24px;border-radius:50%;padding:0;flex:none;
+  border:2px solid color-mix(in srgb,var(--tinta-card) 30%,transparent);
+  background:none;display:grid;place-items:center;color:transparent;
+}
+.chk svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.chk:hover{border-color:var(--tinta-card)}
+.chk.on{background:var(--entra-tinta);border-color:var(--entra-tinta);color:var(--creme)}
+.rdesc{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rmeta{font-size:.78rem;color:var(--apagado-card);display:flex;flex-wrap:wrap;gap:3px 8px;align-items:center}
+.rval{font-weight:700;white-space:nowrap;font-size:1rem}
+.rval.r{color:var(--entra-tinta)}
+.rval.d{color:var(--sai-tinta)}
+/* Etiqueta: preenchimento com tinta por cima, o padrão de selo dos irmãos. */
+/*
+ * A etiqueta neutra é o caso que a auditoria na página renderizada pegou e a
+ * medição na paleta não pegaria: `--apagado-card` dá 4,94 sobre o creme puro,
+ * mas o preenchimento de 12% escurece o fundo e derruba para 3,78. É
+ * literalmente o aviso da base §4 — composição de camada semitransparente muda
+ * o contraste real. Tinta própria, medida em 5,49 sobre o fundo composto.
+ */
+.pill{
+  font-size:.66rem;font-weight:700;border-radius:1px;padding:2px 6px;
+  letter-spacing:.1em;text-transform:uppercase;
+  background:color-mix(in srgb,var(--tinta-card) 12%,transparent);color:#544c3e;
+}
+.pill.late{background:var(--sai-tinta);color:var(--creme)}
+.pill.plan{background:var(--acento);color:var(--tinta-card)}
+.empty{padding:34px 16px;text-align:center;color:var(--apagado-card);box-shadow:var(--sombra)}
+.empty p{margin:0 0 14px}
+
+/* ---------- tabela: a página de razão ---------- */
+.tablewrap{overflow-x:auto;margin-bottom:16px}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th,td{padding:9px 14px;text-align:right;border-top:1px solid var(--linha-card);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{
+  position:sticky;top:0;z-index:1;border-top:0;
+  background:var(--elevado);color:var(--tinta-escuro);
+  font-family:var(--texto);font-size:.68rem;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;
+}
+tbody tr.idle td{color:var(--apagado-card)}
+/* Hoje é o filete duplo do livro-caixa, não um fundo colorido. */
+tbody tr.today td{border-top:2px solid var(--tinta-card);border-bottom:2px solid var(--tinta-card);font-weight:700}
+tbody tr.open td,tfoot td{background:color-mix(in srgb,var(--tinta-card) 7%,transparent);font-weight:700}
+td.negbal{color:var(--sai-tinta);font-weight:700}
+td.fut{color:var(--apagado-card)}
+td.pos{color:var(--entra-tinta)}
+td.neg{color:var(--sai-tinta)}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:16px}
+.acc{padding:16px;display:flex;flex-direction:column;gap:12px}
+.acc .big{font-size:1.75rem;line-height:1;letter-spacing:-.01em}
+.acc .mini{font-size:.8rem;color:var(--apagado-card);margin-top:3px}
+.editrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center}
+.lbl{display:block;margin-bottom:4px}
+.catlist{display:flex;flex-direction:column;gap:8px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+/* Controles dentro da ficha herdam o papel, não o escuro da moldura. */
+.acc .field,.catlist .field,.sheet .field,.panel .field{
+  background:transparent;color:var(--tinta-card);
+  border:1px solid color-mix(in srgb,var(--tinta-card) 25%,transparent);
+}
+.acc .field:focus,.catlist .field:focus,.sheet .field:focus,.panel .field:focus{border-color:var(--tinta-card)}
+.acc input[type="color"],.catlist input[type="color"]{
+  width:34px;height:34px;padding:2px;background:transparent;
+  border:1px solid color-mix(in srgb,var(--tinta-card) 25%,transparent);border-radius:2px;
+}
+.acc .btn,.catlist .btn,.panel .btn,.empty .btn,.sheet .btn{
+  color:var(--tinta-card);border-color:color-mix(in srgb,var(--tinta-card) 30%,transparent);
+}
+.acc .btn:hover,.catlist .btn:hover,.panel .btn:hover,.empty .btn:hover,.sheet .btn:hover{
+  border-color:var(--tinta-card);color:var(--tinta-card);background:color-mix(in srgb,var(--tinta-card) 6%,transparent);
+}
+.acc .btn.danger,.catlist .btn.danger,.panel .btn.danger,.sheet .btn.danger{color:var(--apagado-card)}
+.acc .btn.danger:hover,.catlist .btn.danger:hover,.panel .btn.danger:hover,.sheet .btn.danger:hover{
+  border-color:var(--sai-tinta);color:var(--sai-tinta);background:none;
+}
+.acc .btn.danger.armed,.panel .btn.danger.armed,.sheet .btn.danger.armed{background:var(--sai-tinta);border-color:var(--sai-tinta);color:var(--creme)}
+.acc .btn.primary,.panel .btn.primary,.empty .btn.primary,.sheet .btn.primary{
+  background:var(--tinta-card);border-color:var(--tinta-card);color:var(--creme);
+}
+.acc .btn.primary:hover,.panel .btn.primary:hover,.empty .btn.primary:hover,.sheet .btn.primary:hover{
+  background:var(--tinta-card);color:var(--creme);filter:none;opacity:.88;
+}
+
+/* ---------- formulário ---------- */
+.fab{display:none}
+#modal{position:fixed;inset:0;background:rgba(10,8,5,.66);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+#modal[hidden]{display:none}
+.sheet{width:min(520px,100%);max-height:calc(100% - 8px);overflow:auto;padding:20px}
+.sheet h3{font-size:1.3rem;margin-bottom:14px;letter-spacing:.02em}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.fgrid .full{grid-column:1/-1}
+.fgrid .field{width:100%}
+/* O valor é o campo que importa no formulário, então é o maior — mesma regra
+   do placar, em escala de formulário. */
+.big-in{font-size:1.75rem;line-height:1.2;padding:6px 10px}
+.tipo{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tipo label{
+  border:1.5px solid color-mix(in srgb,var(--tinta-card) 25%,transparent);border-radius:2px;
+  padding:9px;text-align:center;cursor:pointer;color:var(--apagado-card);
+  font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+}
+.tipo input{position:absolute;opacity:0;pointer-events:none}
+.tipo label:has(input:checked){border-color:var(--tinta-card);background:var(--tinta-card);color:var(--creme)}
+.tipo label:has(input:focus-visible){outline:2px solid var(--tinta-card);outline-offset:2px}
+.check{display:flex;align-items:center;gap:9px;font-size:.9rem;font-weight:500}
+.check input{width:18px;height:18px;accent-color:var(--tinta-card)}
+.hint{
+  font-size:.8rem;color:var(--apagado-card);line-height:1.5;
+  border-left:3px solid color-mix(in srgb,var(--tinta-card) 25%,transparent);padding:2px 0 2px 10px;
+}
+.err{color:var(--sai-tinta);font-weight:700;font-size:.82rem;min-height:18px}
+.sheetfoot{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;margin-top:16px;align-items:center}
+.sheetfoot .r{display:flex;gap:8px;flex-wrap:wrap}
+#toast{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:60;
+  background:var(--acento);color:var(--fundo);padding:9px 18px;border-radius:2px;
+  font-size:.82rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  box-shadow:var(--sombra);opacity:0;pointer-events:none;transition:opacity .2s;
+}
+#toast.show{opacity:1}
+.loading{padding:60px 0;text-align:center;color:var(--apagado-escuro);letter-spacing:.06em}
+
+/* ---------- celular primeiro (base §9) ---------- */
+@media (max-width:860px){
+  body{padding:16px var(--margem) 100px}
+  .shell{grid-template-columns:minmax(0,1fr);gap:0}
+  .side{
+    position:fixed;left:0;right:0;bottom:0;top:auto;z-index:20;flex-direction:row;gap:0;
+    background:var(--elevado);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));
+    box-shadow:0 -2px 0 rgba(0,0,0,.35);
+  }
+  .brand,.sync{display:none}
+  .nav{flex-direction:row;width:100%;justify-content:space-between;gap:0}
+  .nav button{
+    flex-direction:column;gap:3px;padding:6px 2px;flex:1 1 0;min-width:0;
+    align-items:center;text-align:center;font-size:.6rem;letter-spacing:.06em;
+  }
+  .nav button[aria-current="page"]{box-shadow:inset 0 3px 0 var(--acento);background:none}
+  .nav .lg{display:none}
+  .nav .sh{display:inline;white-space:nowrap}
+  .desk{display:none}
+  .fab{
+    display:grid;place-items:center;position:fixed;right:16px;
+    bottom:calc(76px + env(safe-area-inset-bottom,0px));
+    width:54px;height:54px;border-radius:50%;border:0;
+    background:var(--acento);color:var(--fundo);box-shadow:var(--sombra);z-index:30;
+  }
+  .fab svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2.6;stroke-linecap:round}
+  #modal{align-items:flex-end;padding:0}
+  .sheet{border-radius:var(--raio) var(--raio) 0 0;width:100%;box-shadow:none;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+  .row{gap:10px;padding:10px 12px 10px 9px}
+  .diahead{padding:10px 12px 8px}
+  #toast{bottom:calc(86px + env(safe-area-inset-bottom,0px))}
+}
+@media (max-width:420px){
+  .fgrid{grid-template-columns:1fr}
+  /* O ponto de categoria sai: o filete lateral da linha já carrega a cor. */
+  .row .dot{display:none}
+  .placar{gap:10px 24px}
+}
+/* Vale para CSS e para JS. Não há animação em JS hoje; se houver, ela precisa
+   consultar matchMedia, porque esta regra não a alcança (base §12.5). */
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}

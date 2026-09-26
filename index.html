@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Saldo Diário</title>
+<meta name="theme-color" content="#14100b">
+<!-- Fontes auto-hospedadas: sem preconnect a terceiro na primeira pintura. -->
+<link rel="preload" href="fonts/oswald-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="styles.css">
+<!-- Cliente do Supabase: só usado se config.js preencher URL e chave. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><i><svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 4 8-9"/></svg></i>Saldo Diário</div>
+    <nav class="nav" id="nav" aria-label="Seções"></nav>
+    <div class="sync" id="sync" data-s="local"><i></i><span>Carregando…</span></div>
+  </aside>
+  <main>
+    <header class="top" id="top"></header>
+    <div id="banner"></div>
+    <div id="view"><p class="loading">Carregando seus lançamentos…</p></div>
+  </main>
+</div>
+<button class="fab" data-act="new" aria-label="Novo lançamento"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+<div id="modal" hidden></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>
