@@ -474,27 +474,30 @@ td.neg{color:var(--sai-tinta)}
   body{padding:16px var(--margem) 100px}
   .shell{grid-template-columns:minmax(0,1fr);gap:0}
   .side{
-    position:fixed;left:0;right:0;bottom:0;top:auto;z-index:20;flex-direction:row;gap:0;
+    position:fixed;left:0;right:0;bottom:0;top:auto;z-index:20;flex-direction:row;align-items:center;gap:6px;
     background:var(--elevado);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));
     box-shadow:0 -2px 0 rgba(0,0,0,.35);
   }
   .brand,.sync{display:none}
-  .nav{flex-direction:row;width:100%;justify-content:space-between;gap:0}
+  .nav{flex-direction:row;flex:1 1 auto;min-width:0;justify-content:space-between;gap:0}
   .nav button{
-    flex-direction:column;gap:3px;padding:6px 2px;flex:1 1 0;min-width:0;
-    align-items:center;text-align:center;font-size:.6rem;letter-spacing:.06em;
+    flex-direction:column;gap:3px;padding:6px 1px;flex:1 1 0;min-width:0;
+    align-items:center;text-align:center;font-size:.58rem;letter-spacing:.02em;
   }
   .nav button[aria-current="page"]{box-shadow:inset 0 3px 0 var(--acento);background:none}
   .nav .lg{display:none}
   .nav .sh{display:inline;white-space:nowrap}
   .desk{display:none}
+  /* O FAB vive dentro da barra fixa, não flutuando sobre a lista: solto ele
+     cobria a coluna de valores enquanto rolava (IDENTIDADE-VISUAL.md §pendências).
+     44px é o mínimo de área de toque (HIG); "Categorias" é o rótulo que decide
+     o espaço que sobra pra ele, por ser o mais longo dos cinco. */
   .fab{
-    display:grid;place-items:center;position:fixed;right:16px;
-    bottom:calc(76px + env(safe-area-inset-bottom,0px));
-    width:54px;height:54px;border-radius:50%;border:0;
-    background:var(--acento);color:var(--fundo);box-shadow:var(--sombra);z-index:30;
+    display:grid;place-items:center;position:static;flex:none;
+    width:44px;height:44px;border-radius:50%;border:0;
+    background:var(--acento);color:var(--fundo);box-shadow:var(--sombra);
   }
-  .fab svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2.6;stroke-linecap:round}
+  .fab svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:2.6;stroke-linecap:round}
   #modal{align-items:flex-end;padding:0}
   .sheet{border-radius:var(--raio) var(--raio) 0 0;width:100%;box-shadow:none;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
   .row{gap:10px;padding:10px 12px 10px 9px}
