@@ -41,7 +41,7 @@ garante que ninguém lê ou escreve a linha de outra pessoa, mesmo a
 Em **Authentication → Providers → Email**, deixe "Confirm email" como
 preferir (não é obrigatório para o link mágico funcionar). Em
 **Authentication → URL Configuration**, adicione em **Redirect URLs** a
-URL onde o app vai ficar publicado (ex.: `https://seu-usuario.github.io/financeiro/`
+URL onde o app vai ficar publicado (ex.: `https://aje-financeiro.netlify.app`
 ou `http://localhost:8321` para testar local). Sem isso, o Supabase rejeita
 o redirecionamento do link e a pessoa não consegue entrar.
 
