@@ -1,4 +1,4 @@
-# Identidade visual — Saldo Diário
+# Identidade visual — AJÉ
 
 Adaptação do `IDENTIDADE-VISUAL-BASE.md` (extraído do CAMPINHO) para um app de
 finanças. Leia a base primeiro; o que está aqui é só o que mudou e por quê.
@@ -102,7 +102,7 @@ como o erro §12.1 nasce.
 
 ## Tipografia
 
-| Papel | No Saldo Diário | Por quê |
+| Papel | No AJÉ | Por quê |
 |---|---|---|
 | Display | **Oswald** 500–700 | condensada e pesada, e — diferente do Anton do CAMPINHO/quiz — com algarismos de largura uniforme. Numa coluna de dinheiro o Anton faz a vírgula dançar de linha para linha. |
 | Texto | **Figtree** 400–700 | neutra, confortável, boa no celular |
@@ -130,7 +130,7 @@ Zero requisição a terceiro. Zero imagem: ícones são SVG inline e a textura �
 
 ## O que foi trocado
 
-| Elemento | Campinho | Saldo Diário |
+| Elemento | Campinho | AJÉ |
 |---|---|---|
 | Objeto colecionável | carta de decisão | ficha do dia |
 | Número-símbolo | OVR | saldo |

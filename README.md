@@ -1,4 +1,4 @@
-# Saldo Diário
+# AJÉ
 
 Controle financeiro pessoal: lançamentos realizados e previstos, recorrência, parcelas e saldo esperado dia a dia.
 

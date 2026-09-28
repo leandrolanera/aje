@@ -566,7 +566,7 @@ const H={
     const rows=[["Data","Descrição","Tipo","Valor","Categoria","Conta","Status","Parcela"]];
     S.tx.slice().sort((a,b)=>a.data<b.data?-1:a.data>b.data?1:0).forEach(t=>rows.push([t.data,t.desc,t.tipo==="r"?"Receita":"Despesa",inMoney(signed(t)),catOf(t.cat).nome,accOf(t.conta).nome,t.ok?"Realizado":"Previsto",t.rep==="p"?t.parcela+"/"+t.total:""]));
     const data="﻿"+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\r\n");
-    try{await downloads.save({filename:"saldo-diario-"+todayISO()+".csv",data});toast("Arquivo salvo")}catch(e){if(e&&e.code!=="declined")toast("Não foi possível exportar")}
+    try{await downloads.save({filename:"aje-"+todayISO()+".csv",data});toast("Arquivo salvo")}catch(e){if(e&&e.code!=="declined")toast("Não foi possível exportar")}
   }
 };
 function bind(){
