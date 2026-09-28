@@ -5,5 +5,5 @@
  * só com localStorage, como antes. A "anon key" é pública por natureza — quem
  * protege os dados é a Row Level Security da tabela (ver SUPABASE.md).
  */
-window.SUPABASE_URL = "";
-window.SUPABASE_ANON_KEY = "";
+window.SUPABASE_URL = "https://hnokbrxolhviarzodtvq.supabase.co";
+window.SUPABASE_ANON_KEY = "sb_publishable_Qi4o1XwOCVzcYaxxvOH8Jg_aQniGfM6";
