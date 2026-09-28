@@ -129,13 +129,15 @@ h1,h2,h3,.placar-v,.kpi .v,.acc .big,.big-in{
 /* ---------- moldura ---------- */
 .shell{display:grid;grid-template-columns:184px minmax(0,1fr);gap:32px;max-width:1240px;margin:0 auto;align-items:start}
 .side{position:sticky;top:env(safe-area-inset-top,0px);display:flex;flex-direction:column;gap:24px;padding-top:4px}
-.brand{
-  font-family:var(--display);font-weight:700;font-size:1.5rem;line-height:1;
-  letter-spacing:-.01em;text-transform:uppercase;color:var(--acento);
-  display:flex;align-items:center;gap:9px;
-}
+.brand{display:flex;align-items:center;gap:9px}
 .brand i{width:26px;height:26px;flex:none;display:grid;place-items:center;background:var(--acento);border-radius:2px}
 .brand i svg{width:16px;height:16px;stroke:var(--fundo);fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.brand-txt{display:flex;flex-direction:column;line-height:1.15}
+.brand-name{
+  font-family:var(--display);font-weight:700;font-size:1.5rem;line-height:1;
+  letter-spacing:-.01em;text-transform:uppercase;color:var(--acento);
+}
+.brand-tag{font-family:var(--texto);font-size:.66rem;letter-spacing:.03em;color:var(--apagado-escuro)}
 .nav{display:flex;flex-direction:column;gap:1px}
 .nav button{
   display:flex;align-items:center;gap:10px;background:none;border:0;
