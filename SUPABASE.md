@@ -60,6 +60,26 @@ Com isso preenchido, a tela **Contas** passa a mostrar "Sincronizar entre
 dispositivos". Sem preencher, essa seção some e o app segue só local — nada
 muda para quem não configurar.
 
+## 5. Ativar login com Google (opcional)
+
+O e-mail continua funcionando sozinho; isto só acrescenta um jeito mais
+rápido de entrar, lado a lado.
+
+1. No [Google Cloud Console](https://console.cloud.google.com), crie um
+   OAuth Client ID do tipo "Web application". Em **Authorized redirect
+   URIs**, cadastre a URL de callback do Supabase (não é uma URL do app):
+   `https://SEU-PROJETO.supabase.co/auth/v1/callback`. Guarde o Client ID e
+   o Client Secret gerados.
+2. Em **Supabase → Authentication → Providers → Google**, ative e cole o
+   Client ID e o Secret.
+3. Em **Supabase → Authentication → Providers** (ou **Settings**,
+   dependendo da versão do painel), ligue **"Allow manual linking"**. Sem
+   isso, o botão "Conectar Google" (vincular Google a uma conta já logada
+   por e-mail) falha, mesmo com o provider ativado — é uma configuração
+   separada e vem desligada por padrão.
+4. As **Redirect URLs** do passo 3 acima já valem para o Google também —
+   não precisa cadastrar nada novo ali.
+
 ## Como funciona
 
 - `app.js` cria o cliente Supabase só se `config.js` tiver as duas chaves
@@ -77,6 +97,22 @@ muda para quem não configurar.
   duplicar código.
 - Sair (`Sair desta conta`) desconecta o canal em tempo real e volta para o
   `localStorage` deste dispositivo; os lançamentos não são apagados.
+- "Conectar Google" (`supa.auth.linkIdentity`) anexa a conta Google à
+  mesma sessão já logada por e-mail, sem trocar de `user_id` — por isso o
+  Supabase dispara `USER_UPDATED` em vez de `SIGNED_IN`, e `setupAuth`
+  trata esse evento separado para só atualizar a tela.
+
+## Limitações conhecidas
+
+O Supabase não funde contas automaticamente por e-mail verificado entre
+provedores. Se alguém clicar "Entrar com Google" direto — sem antes estar
+logado por e-mail e usar "Conectar Google" — usando o mesmo e-mail de uma
+conta já existente, o Supabase cria um `auth.users` novo, com `user_id`
+diferente. Os lançamentos antigos continuam no banco (nada se perde), mas
+ficam invisíveis nessa sessão nova, sem aviso nenhum no app. Resolver isso
+em código (fundir contas) é desproporcional para um app de uso pessoal; a
+tela de login já avisa pra entrar por e-mail primeiro quando já existe
+conta.
 
 ## Publicar (hospedagem estática)
 

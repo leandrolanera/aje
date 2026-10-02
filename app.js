@@ -185,6 +185,8 @@ function setupAuth(){
         attachRef(supaRef(session.user.id),localFallback).then(render);
       }else if(event==="SIGNED_OUT"){
         authUser=null;if(unsub){unsub();unsub=null}ref=null;setSync("local");render();
+      }else if(event==="USER_UPDATED"&&session){
+        authUser=session.user;render();
       }
     });
   });
@@ -357,14 +359,20 @@ function viewFluxo(){
    segue só com localStorage, sem pedir conta a ninguém. */
 function syncPanel(){
   if(!supa)return"";
-  if(authUser)return '<section class="panel"><h2>Sincronizar entre dispositivos</h2>'
-   +'<p class="sub">Conectado como '+esc(authUser.email)+'. Os lançamentos acompanham essa conta em qualquer aparelho.</p>'
-   +'<div class="actions"><button class="btn" data-act="signout">Sair desta conta</button></div></section>';
+  if(authUser){
+    const hasGoogle=authUser.identities&&authUser.identities.some(i=>i.provider==="google");
+    return '<section class="panel"><h2>Sincronizar entre dispositivos</h2>'
+     +'<p class="sub">Conectado como '+esc(authUser.email)+'. Os lançamentos acompanham essa conta em qualquer aparelho.</p>'
+     +'<div class="actions"><button class="btn" data-act="signout">Sair desta conta</button>'
+     +(hasGoogle?"":'<button class="btn" data-act="googleLink">Conectar Google</button>')+'</div></section>';
+  }
   return '<section class="panel"><h2>Sincronizar entre dispositivos</h2>'
    +'<p class="sub">Entre com seu e-mail para ver os mesmos lançamentos no celular e no computador. Sem senha: você recebe um link de acesso.</p>'
    +'<form class="fgrid" id="authform"><input class="field full" id="f-email" type="email" required autocomplete="email" placeholder="seu@email.com" aria-label="E-mail">'
    +'<div class="full actions"><button class="btn primary" type="submit">Enviar link de acesso</button></div></form>'
-   +'<p class="sub" id="authmsg" style="margin:8px 0 0"></p></section>';
+   +'<p class="sub" id="authmsg" style="margin:8px 0 0"></p>'
+   +'<p class="sub" style="margin-top:10px">Já tem conta por e-mail? Entre com e-mail e use "Conectar Google" para vincular — entrar direto com Google cria uma conta separada.</p>'
+   +'<div class="full"><button class="btn" data-act="googleSignin">Entrar com Google</button></div></section>';
 }
 async function sendMagicLink(e){
   e.preventDefault();
@@ -562,6 +570,8 @@ const H={
   addcat(el){S.categories.push({id:"c"+uid(),nome:"Nova categoria",tipo:el.dataset.tipo,cor:"#4A5560"});persist();render()},
   delcat(el){S.categories=S.categories.filter(c=>c.id!==el.dataset.id);persist();render()},
   signout(){supa.auth.signOut()},
+  googleSignin(){supa.auth.signInWithOAuth({provider:"google",options:{redirectTo:location.origin+location.pathname}})},
+  googleLink(){supa.auth.linkIdentity({provider:"google",options:{redirectTo:location.origin+location.pathname}})},
   async export(){
     const rows=[["Data","Descrição","Tipo","Valor","Categoria","Conta","Status","Parcela"]];
     S.tx.slice().sort((a,b)=>a.data<b.data?-1:a.data>b.data?1:0).forEach(t=>rows.push([t.data,t.desc,t.tipo==="r"?"Receita":"Despesa",inMoney(signed(t)),catOf(t.cat).nome,accOf(t.conta).nome,t.ok?"Realizado":"Previsto",t.rep==="p"?t.parcela+"/"+t.total:""]));
