@@ -467,7 +467,16 @@ td.neg{color:var(--sai-tinta)}
   box-shadow:var(--sombra);opacity:0;pointer-events:none;transition:opacity .2s;
 }
 #toast.show{opacity:1}
-.loading{padding:60px 0;text-align:center;color:var(--apagado-escuro);letter-spacing:.06em}
+.loading{padding:0;text-align:center;color:var(--apagado-escuro);letter-spacing:.06em}
+/* Tela de carregamento: único lugar visível no celular antes da barra de
+   navegação existir, já que o .brand da sidebar some lá — por isso carrega
+   o mesmo símbolo, só que grande o bastante pra valer como logo sozinho. */
+.boot{display:flex;flex-direction:column;align-items:center;gap:6px;padding:72px 0 60px}
+.boot-mark{width:56px;height:56px;border-radius:4px;background:var(--acento);display:grid;place-items:center;margin-bottom:8px}
+.boot-mark svg{width:34px;height:34px;stroke:var(--fundo);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.boot-name{font-family:var(--display);font-weight:700;font-size:2rem;line-height:1;letter-spacing:-.01em;text-transform:uppercase;color:var(--acento)}
+.boot-tag{font-family:var(--texto);font-size:.85rem;letter-spacing:.03em;color:var(--apagado-escuro)}
+.boot .loading{margin-top:14px}
 
 /* ---------- celular primeiro (base §9) ---------- */
 @media (max-width:860px){
