@@ -613,6 +613,13 @@ function bind(){
 
 (async function boot(){
   bind();
+  /* Com dados no localStorage, initStore() resolve em ~30ms — rápido
+     demais pra alguém notar o logo da tela de carregamento. Um piso
+     garante que ele apareça de verdade, sem atrasar os casos em que a
+     checagem de sessão do Supabase já leva mais que isso sozinha. */
+  const t0=performance.now();
   await initStore();
+  const falta=400-(performance.now()-t0);
+  if(falta>0)await new Promise(r=>setTimeout(r,falta));
   render();
 })();
