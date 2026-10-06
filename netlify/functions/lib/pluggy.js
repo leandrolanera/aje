@@ -46,7 +46,10 @@ async function fetchCreditAccounts(itemId) {
   return (results || []).filter(a => a.type === "CREDIT");
 }
 
-/* Transações recentes (inclui as ainda PENDING, sem billId) de uma conta.
+/* Todas as transações da conta — PENDING (ainda sem billId) e POSTED (já
+   com billId, depois que a fatura fecha): é o mesmo objeto, atualizado no
+   lugar, não dois conjuntos diferentes (por isso não precisamos do endpoint
+   de faturas — ver comentário em syncItem).
    GET /transactions (v1, por página) foi descontinuado pela Pluggy em 2026
    pra contas criadas depois de junho — devolve 410. O substituto, /v2/
    transactions, pagina por cursor: cada resposta traz `next`, uma query
@@ -58,17 +61,6 @@ async function fetchRecentTransactions(accountId) {
     const { results, next } = await pluggyGet(path);
     out.push(...(results || []));
     path = next ? "/v2/transactions" + next : null;
-  }
-  return out;
-}
-
-/* Faturas da conta e, para cada uma, as transações já POSTED vinculadas. */
-async function fetchBillTransactions(accountId) {
-  const { results: bills } = await pluggyGet("/bills?accountId=" + encodeURIComponent(accountId));
-  const out = [];
-  for (const bill of bills || []) {
-    const { results } = await pluggyGet("/bills/" + encodeURIComponent(bill.id) + "/transactions?pageSize=500");
-    for (const t of results || []) out.push(Object.assign({}, t, { billId: bill.id }));
   }
   return out;
 }
@@ -104,24 +96,22 @@ async function upsertRows(supabase, rows) {
 }
 
 /* Ponto de entrada único usado tanto pelo webhook quanto pelo sync manual:
-   busca tudo que existe hoje pro item configurado e grava. */
+   busca tudo que existe hoje pro item configurado e grava.
+   Só /v2/transactions — não /bills/:id/transactions (ver comentário em
+   fetchRecentTransactions): mesmo objeto de transação é atualizado com
+   billId/status=POSTED quando a fatura fecha, sem precisar do endpoint de
+   faturas, que devolveu 403 (produto fora do tier gratuito do Meu Pluggy). */
 async function syncItem(supabase) {
   const itemId = process.env.PLUGGY_ITEM_ID;
   const accounts = await fetchCreditAccounts(itemId);
   let total = 0;
   for (const acc of accounts) {
-    const [recent, billed] = await Promise.all([
-      fetchRecentTransactions(acc.id),
-      fetchBillTransactions(acc.id)
-    ]);
-    const byId = new Map();
-    for (const t of recent.concat(billed)) byId.set(t.id, t); // billed tem prioridade (tem billId)
-    for (const t of billed) byId.set(t.id, t);
-    const rows = Array.from(byId.values()).map(t => mapTransaction(t, itemId, acc.id));
+    const txs = await fetchRecentTransactions(acc.id);
+    const rows = txs.map(t => mapTransaction(t, itemId, acc.id));
     const { count } = await upsertRows(supabase, rows);
     total += count;
   }
   return { accounts: accounts.length, transactions: total };
 }
 
-module.exports = { getApiKey, fetchCreditAccounts, fetchRecentTransactions, fetchBillTransactions, syncItem };
+module.exports = { getApiKey, fetchCreditAccounts, fetchRecentTransactions, syncItem };
