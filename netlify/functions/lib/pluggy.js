@@ -46,16 +46,25 @@ async function fetchCreditAccounts(itemId) {
   return (results || []).filter(a => a.type === "CREDIT");
 }
 
-/* Todas as transações da conta — PENDING (ainda sem billId) e POSTED (já
-   com billId, depois que a fatura fecha): é o mesmo objeto, atualizado no
-   lugar, não dois conjuntos diferentes (por isso não precisamos do endpoint
-   de faturas — ver comentário em syncItem).
+/* Todas as transações da conta, incluindo as parcelas futuras (a Pluggy as
+   devolve com a data do mês em que serão cobradas — é daí que o app monta as
+   faturas futuras).
+
+   PLUGGY_DATE_FROM (yyyy-mm-dd, opcional) corta o histórico na origem: sem
+   ele a Pluggy devolve tudo que existe, o que deixa cada sync caro à toa
+   quando só interessam as faturas a partir de certa data. Também é o que faz
+   uma limpeza manual na tabela do Supabase valer: sem o corte aqui, as linhas
+   apagadas voltam no sync seguinte.
+
    GET /transactions (v1, por página) foi descontinuado pela Pluggy em 2026
    pra contas criadas depois de junho — devolve 410. O substituto, /v2/
    transactions, pagina por cursor: cada resposta traz `next`, uma query
-   string pronta pra colar direto na mesma rota; `next: null` é o fim. */
+   string pronta pra colar direto na mesma rota (já carregando os filtros
+   originais); `next: null` é o fim. */
 async function fetchRecentTransactions(accountId) {
-  let path = "/v2/transactions?accountId=" + encodeURIComponent(accountId);
+  const from = process.env.PLUGGY_DATE_FROM;
+  let path = "/v2/transactions?accountId=" + encodeURIComponent(accountId)
+    + (from ? "&dateFrom=" + encodeURIComponent(from) : "");
   const out = [];
   while (path) {
     const { results, next } = await pluggyGet(path);

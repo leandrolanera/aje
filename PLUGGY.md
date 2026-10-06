@@ -88,6 +88,7 @@ SUPABASE_SERVICE_ROLE_KEY
 AJE_USER_ID
 PLUGGY_SYNC_SECRET
 PLUGGY_WEBHOOK_SECRET
+PLUGGY_DATE_FROM        (opcional)
 ```
 
 `SUPABASE_URL` é a mesma URL do projeto que já está em `config.js`, só que
@@ -100,6 +101,16 @@ qualquer que você inventa, só pra proteger o endpoint de resync manual.
 `PLUGGY_WEBHOOK_SECRET` é outra senha qualquer, inventada por você — é o
 segredo que a Pluggy vai devolver em todo webhook (passo 6), pra provar que
 a chamada é dela mesma.
+
+`PLUGGY_DATE_FROM` (formato `2026-09-18`) é opcional e corta o histórico na
+origem: a Pluggy só devolve transações daquela data em diante. Sem ela, vem
+tudo que existe — o que pode ser bem mais do que você quer acompanhar e
+deixa cada sync caro à toa. Atenção ao escolher a data: ela precisa alcançar
+o **início do ciclo** da fatura mais antiga que você quer ver inteira, não o
+mês dela. Como o cartão fecha dia 17, a fatura que vence em 24/10 começa em
+18/09 — cortar em 01/10 traria essa fatura incompleta. É também essa
+variável que faz uma limpeza manual na tabela `pluggy_tx` valer: sem o
+corte aqui, as linhas apagadas voltam no sync seguinte.
 
 ## 5. Rodar o backfill inicial
 
