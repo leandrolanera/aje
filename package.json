@@ -1,0 +1,9 @@
+{
+  "name": "aje-functions",
+  "private": true,
+  "description": "Dependências só das Netlify Functions (netlify/functions/) — o site em si continua estático, sem build.",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@supabase/supabase-js": "^2"
+  }
+}

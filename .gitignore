@@ -2,3 +2,7 @@
 
 # Local Netlify folder
 .netlify
+
+# Dependências das Netlify Functions (netlify/functions/) — instaladas pelo
+# Netlify no deploy a partir do package.json/package-lock.json
+node_modules

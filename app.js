@@ -56,6 +56,15 @@ const CATS=[
  {id:"sal",nome:"Salário",tipo:"r",cor:"#1F6B43"},{id:"fre",nome:"Freelance",tipo:"r",cor:"#2A6F9E"},
  {id:"ren",nome:"Rendimentos",tipo:"r",cor:"#5C7A1F"},{id:"orc",nome:"Outras receitas",tipo:"r",cor:"#8A6B1F"}
 ];
+/* Categoria que a Pluggy manda pra categoria do AJÉ — tabela pequena de
+   propósito, cresce aos poucos com categorias reais vistas nos dados. O
+   fallback é "car" (Cartão de crédito), não "out": toda linha que passa por
+   aqui já é necessariamente uma transação de cartão. */
+const PLUGGY_CAT_MAP={
+ "Supermercado":"mer","Restaurante":"res","Transporte":"tra",
+ "Saúde":"sau","Farmácia":"sau","Lazer":"laz","Assinaturas e serviços":"ass"
+};
+const mapCategory=c=>PLUGGY_CAT_MAP[c]||"car";
 function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function seed(){
   const T=todayISO(),now=new Date(),rnd=mulberry(7),tx=[];
@@ -107,7 +116,7 @@ const LS="saldo-diario-v1";
    localStorage, exatamente como antes de existir sincronização. */
 const supa=(window.SUPABASE_URL&&window.SUPABASE_ANON_KEY&&window.supabase)
   ?window.supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY):null;
-let S=null,ref=null,unsub=null,downloads=null,saving=false,dirty=false,saveTimer=0,authUser=null;
+let S=null,ref=null,unsub=null,downloads=null,saving=false,dirty=false,saveTimer=0,authUser=null,pluggyUnsub=null,pluggyTx=[];
 let view="geral",armed=null,armTimer=0,toastTimer=0;
 const now0=new Date();
 let cur={y:now0.getFullYear(),m:now0.getMonth()};
@@ -172,6 +181,35 @@ function supaRef(uid){
     }
   };
 }
+/* pluggy_tx é uma tabela separada do app_state de propósito (ver PLUGGY.md):
+   quem grava nela é só a Netlify Function, nunca o navegador, então não tem
+   o risco de corrida que existiria se fosse o mesmo blob do app_state.
+   `pluggyTx` fica FORA de `S` por isso mesmo — se fosse S.pluggyTx,
+   persist()/flush() clonariam e subiriam ele pro app_state sem querer
+   (clone(S) em flush() serializa tudo que estiver pendurado em S). Como é
+   variável à parte, nunca passa por persist(): some ao sair e reaparece
+   sozinho ao entrar, igual qualquer outra leitura remota. */
+function mapPluggyRow(row){
+  return {id:"pg-"+row.transaction_id,data:row.date,desc:row.description,
+   valor:Math.abs(row.amount_cents),tipo:row.tipo,cat:mapCategory(row.category_pluggy),
+   conta:"nubank",ok:row.status==="POSTED",imported:true};
+}
+function attachPluggy(uid){
+  const load=()=>supa.from("pluggy_tx").select("*").eq("user_id",uid).then(({data,error})=>{
+    if(error)return;
+    pluggyTx=(data||[]).map(mapPluggyRow);
+    if(pluggyTx.length&&!S.accounts.some(a=>a.id==="nubank")){
+      S.accounts.push({id:"nubank",nome:"Nubank",saldoInicial:0,cor:"#820AD1"});
+      persist();
+    }
+    render();
+  });
+  load();
+  const channel=supa.channel("pluggy_tx_"+uid).on("postgres_changes",
+   {event:"*",schema:"public",table:"pluggy_tx",filter:"user_id=eq."+uid},load
+  ).subscribe();
+  return ()=>supa.removeChannel(channel);
+}
 /* Resolve com a sessão inicial (ou null) uma única vez; depois disso, entrar
    ou sair da conta em qualquer aba reconecta ou solta o `ref` sozinho. */
 function setupAuth(){
@@ -183,8 +221,10 @@ function setupAuth(){
       if(event==="SIGNED_IN"&&session&&(!authUser||authUser.id!==session.user.id)){
         authUser=session.user;
         attachRef(supaRef(session.user.id),localFallback).then(render);
+        pluggyUnsub=attachPluggy(session.user.id);
       }else if(event==="SIGNED_OUT"){
-        authUser=null;if(unsub){unsub();unsub=null}ref=null;setSync("local");render();
+        authUser=null;if(unsub){unsub();unsub=null}ref=null;setSync("local");
+        if(pluggyUnsub){pluggyUnsub();pluggyUnsub=null}pluggyTx=[];render();
       }else if(event==="USER_UPDATED"&&session){
         authUser=session.user;render();
       }
@@ -205,7 +245,7 @@ async function initStore(){
   }catch(e){}
   try{
     const session=await setupAuth();
-    if(session){authUser=session.user;await attachRef(supaRef(session.user.id),localFallback);return}
+    if(session){authUser=session.user;await attachRef(supaRef(session.user.id),localFallback);pluggyUnsub=attachPluggy(session.user.id);return}
   }catch(e){}
   localFallback();
 }
@@ -213,7 +253,11 @@ async function initStore(){
 /* ---------- cálculos ---------- */
 const catOf=id=>S.categories.find(c=>c.id===id)||{nome:"Sem categoria",cor:"#7A7469"};
 const accOf=id=>S.accounts.find(a=>a.id===id)||{nome:"—",cor:"#7A7469"};
-const txs=c=>S.tx.filter(t=>c==="all"||t.conta===c);
+/* Lançamentos importados do Nubank (pluggyTx, fora de S) nunca passam por
+   persist()/app_state — vêm só da assinatura Realtime de pluggy_tx
+   (attachPluggy) e se juntam aos manuais só em memória, na hora de ler. */
+const allTx=()=>S.tx.concat(pluggyTx);
+const txs=c=>allTx().filter(t=>c==="all"||t.conta===c);
 const opening=c=>S.accounts.filter(a=>c==="all"||a.id===c).reduce((s,a)=>s+a.saldoInicial,0);
 function balanceBefore(d,c,onlyOk){let b=opening(c);for(const t of txs(c))if(t.data<d&&(!onlyOk||t.ok))b+=signed(t);return b}
 const realNow=c=>{let b=opening(c);for(const t of txs(c))if(t.ok)b+=signed(t);return b};
@@ -270,6 +314,7 @@ function rowHTML(t,showDate){
   const c=catOf(t.cat),a=accOf(t.conta),T=todayISO();
   const late=!t.ok&&t.data<T;
   let badges="";
+  if(t.imported)badges+='<span class="pill">Nubank</span>';
   if(late)badges+='<span class="pill late">Atrasado</span>';
   else if(!t.ok)badges+='<span class="pill plan">Previsto</span>';
   if(t.rep==="p")badges+='<span class="pill">'+t.parcela+"/"+t.total+"</span>";
@@ -277,8 +322,15 @@ function rowHTML(t,showDate){
   /* A cor da categoria é o filete lateral da linha (`--cor-cat`), não o texto.
      O ponto que existia aqui saiu: era a mesma informação duas vezes, e no
      celular o filete é o que sobra quando a largura aperta. */
-  return '<div class="row'+(t.ok?"":" plan")+'" style="--cor-cat:'+cor(c.cor)+'" data-act="edit" data-id="'+t.id+'" tabindex="0" role="button">'
-   +'<button class="chk'+(t.ok?" on":"")+'" data-act="toggle" data-id="'+t.id+'" aria-label="'+(t.ok?"Marcar como previsto":"Marcar como realizado")+'" title="'+(t.ok?"Realizado: toque para voltar a previsto":"Toque para marcar como realizado")+'">'+svg("check")+'</button>'
+  /* Importada do Nubank: espelho só leitura do banco, por isso nem o toque
+     de editar nem o de marcar realizado existem aqui — editar criaria uma
+     segunda versão do mesmo lançamento, e o próximo sync reverteria sem
+     avisar (ver PLUGGY.md). */
+  const chk=t.imported
+   ?'<span class="chk'+(t.ok?" on":"")+'" aria-hidden="true">'+svg("check")+'</span>'
+   :'<button class="chk'+(t.ok?" on":"")+'" data-act="toggle" data-id="'+t.id+'" aria-label="'+(t.ok?"Marcar como previsto":"Marcar como realizado")+'" title="'+(t.ok?"Realizado: toque para voltar a previsto":"Toque para marcar como realizado")+'">'+svg("check")+'</button>';
+  return '<div class="row'+(t.ok?"":" plan")+'" style="--cor-cat:'+cor(c.cor)+'"'+(t.imported?"":' data-act="edit" data-id="'+t.id+'" tabindex="0" role="button"')+'>'
+   +chk
    +'<div><div class="rdesc">'+esc(t.desc)+'</div><div class="rmeta">'+(showDate?'<span>'+fmtShort(t.data)+'</span>':"")+'<span>'+esc(c.nome)+'</span><span>'+esc(a.nome)+'</span>'+badges+'</div></div>'
    +'<div class="rval '+t.tipo+'">'+(t.tipo==="r"?"+":"−")+money(t.valor)+'</div></div>';
 }
@@ -385,8 +437,8 @@ async function sendMagicLink(e){
 function viewContas(){
   const T=todayISO(),endM=iso(new Date(cur.y,cur.m+1,0));
   const cards=S.accounts.map(a=>{
-    const used=S.tx.some(t=>t.conta===a.id);
-    let proj=a.saldoInicial;S.tx.forEach(t=>{if(t.conta===a.id&&t.data<=endM)proj+=signed(t)});
+    const used=allTx().some(t=>t.conta===a.id);
+    let proj=a.saldoInicial;allTx().forEach(t=>{if(t.conta===a.id&&t.data<=endM)proj+=signed(t)});
     return '<div class="acc"><div class="editrow"><input type="color" data-acc="'+a.id+'" data-k="cor" value="'+a.cor+'" aria-label="Cor"><input class="field" data-acc="'+a.id+'" data-k="nome" value="'+esc(a.nome)+'" aria-label="Nome da conta"><button class="btn sm danger" data-act="delacc" data-id="'+a.id+'"'+(used||S.accounts.length<2?" disabled":"")+' title="'+(used?"Conta com lançamentos não pode ser excluída":S.accounts.length<2?"É preciso ter ao menos uma conta":"Excluir conta")+'">Excluir</button></div>'
      +'<div><span class="lbl">Saldo atual</span><div class="big num '+(realNow(a.id)<0?"neg":"")+'">'+money(realNow(a.id))+'</div><div class="mini">Previsto em '+fmtShort(endM)+': <b class="num">'+money(proj)+'</b></div></div>'
      /* O rótulo é chapéu (caixa alta, tracking aberto) e chapéu de seis palavras
@@ -403,7 +455,7 @@ function viewCats(){
   const block=(tipo,titulo)=>{
     const list=S.categories.filter(c=>c.tipo===tipo);
     return '<section class="panel"><h2>'+titulo+'</h2><p class="sub">'+list.length+' categorias</p><div class="catlist">'+list.map(c=>{
-      const used=S.tx.some(t=>t.cat===c.id);
+      const used=allTx().some(t=>t.cat===c.id);
       return '<div class="editrow"><input type="color" data-cat="'+c.id+'" data-k="cor" value="'+c.cor+'" aria-label="Cor"><input class="field" data-cat="'+c.id+'" data-k="nome" value="'+esc(c.nome)+'" aria-label="Nome da categoria"><button class="btn sm danger" data-act="delcat" data-id="'+c.id+'"'+(used?" disabled":"")+' title="'+(used?"Categoria em uso":"Excluir categoria")+'">Excluir</button></div>';
     }).join("")+'</div><div class="actions"><button class="btn" data-act="addcat" data-tipo="'+tipo+'">Nova categoria</button></div></section>';
   };
@@ -574,7 +626,7 @@ const H={
   googleLink(){supa.auth.linkIdentity({provider:"google",options:{redirectTo:location.origin+location.pathname}})},
   async export(){
     const rows=[["Data","Descrição","Tipo","Valor","Categoria","Conta","Status","Parcela"]];
-    S.tx.slice().sort((a,b)=>a.data<b.data?-1:a.data>b.data?1:0).forEach(t=>rows.push([t.data,t.desc,t.tipo==="r"?"Receita":"Despesa",inMoney(signed(t)),catOf(t.cat).nome,accOf(t.conta).nome,t.ok?"Realizado":"Previsto",t.rep==="p"?t.parcela+"/"+t.total:""]));
+    allTx().slice().sort((a,b)=>a.data<b.data?-1:a.data>b.data?1:0).forEach(t=>rows.push([t.data,t.desc,t.tipo==="r"?"Receita":"Despesa",inMoney(signed(t)),catOf(t.cat).nome,accOf(t.conta).nome,t.ok?"Realizado":"Previsto",t.rep==="p"?t.parcela+"/"+t.total:""]));
     const data="﻿"+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\r\n");
     try{await downloads.save({filename:"aje-"+todayISO()+".csv",data});toast("Arquivo salvo")}catch(e){if(e&&e.code!=="declined")toast("Não foi possível exportar")}
   }

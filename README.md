@@ -12,7 +12,9 @@ Os dados ficam no `localStorage` do navegador. Na versão publicada no
 claude.ai eles ficam na sua conta (capacidade `db`); com um projeto Supabase
 configurado (opcional, ver [SUPABASE.md](SUPABASE.md)) eles sincronizam entre
 dispositivos por conta própria. O código detecta e usa cada modo sozinho,
-nessa ordem: claude.ai → Supabase → só local.
+nessa ordem: claude.ai → Supabase → só local. Com o Supabase configurado, dá
+pra também sincronizar a fatura do Nubank automaticamente (opcional, ver
+[PLUGGY.md](PLUGGY.md)).
 
 ## Publicar
 
@@ -33,3 +35,9 @@ dois primeiros. Passo a passo e a sincronização entre dispositivos estão em
   custaram medição, não gosto.
 - `SUPABASE.md`: como ligar a sincronização entre dispositivos e publicar o
   site.
+- `PLUGGY.md`: como ligar a sincronização automática da fatura do Nubank
+  (opcional, precisa do Supabase já configurado).
+- `netlify/functions/`: as únicas partes do projeto que rodam num servidor
+  (não no navegador) — buscam a fatura na API da Pluggy e gravam no
+  Supabase. `package.json` na raiz é só a dependência delas
+  (`@supabase/supabase-js`); o site em si continua sem build.
