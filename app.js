@@ -192,7 +192,7 @@ function supaRef(uid){
 function mapPluggyRow(row){
   return {id:"pg-"+row.transaction_id,data:row.date,desc:row.description,
    valor:Math.abs(row.amount_cents),tipo:row.tipo,cat:mapCategory(row.category_pluggy),
-   conta:"nubank",ok:row.status==="POSTED",imported:true};
+   conta:"nubank",ok:row.status==="POSTED",imported:true,billId:row.bill_id};
 }
 function attachPluggy(uid){
   const load=()=>supa.from("pluggy_tx").select("*").eq("user_id",uid).then(({data,error})=>{
@@ -255,9 +255,64 @@ const catOf=id=>S.categories.find(c=>c.id===id)||{nome:"Sem categoria",cor:"#7A7
 const accOf=id=>S.accounts.find(a=>a.id===id)||{nome:"—",cor:"#7A7469"};
 /* Lançamentos importados do Nubank (pluggyTx, fora de S) nunca passam por
    persist()/app_state — vêm só da assinatura Realtime de pluggy_tx
-   (attachPluggy) e se juntam aos manuais só em memória, na hora de ler. */
-const allTx=()=>S.tx.concat(pluggyTx);
-const txs=c=>allTx().filter(t=>c==="all"||t.conta===c);
+   (attachPluggy) e se juntam aos manuais só em memória, na hora de ler.
+
+   São três visões sobre os mesmos dados, não uma, porque "todas as compras
+   individuais" e "o que desconta do saldo" não podem ser a mesma lista —
+   contar as 1332 compras do Nubank E a fatura no dia do vencimento
+   duplicaria a despesa:
+   - everyTx(): união crua, pros lugares que precisam do fato real (guarda
+     de categoria em uso, exportação CSV) mesmo que ele não apareça isolado
+     na Visão Geral.
+   - allTx(): S.tx + a fatura agregada (pluggyBillEntries) no lugar das
+     compras individuais — é o que entra no saldo/fluxo de caixa.
+   - txs(c): allTx() filtrado, exceto pra conta "nubank", onde mostra as
+     compras individuais em vez da fatura — é o "desagrupar" ao filtrar por
+     essa conta, sem precisar de tela nova. */
+const everyTx=()=>S.tx.concat(pluggyTx);
+const FATURA_DIA=24; // vencimento fixo da fatura do Nubank, informado pelo usuário
+/* Primeiro dia `dia` estritamente depois de `afterISO`. */
+function nextDueDate(afterISO,dia){
+  const thisMonth=afterISO.slice(0,8)+pad(dia);
+  return thisMonth>afterISO?thisMonth:addMonths(afterISO,1,dia);
+}
+/*
+ * Agrupa por billId (quem a própria Pluggy/Nubank já atribuiu à transação
+ * POSTED), não por calendário — não temos a data real de fechamento da
+ * fatura (o endpoint /bills devolve 403, fora do tier gratuito do Meu
+ * Pluggy, ver PLUGGY.md). A data de vencimento de cada grupo é aproximada:
+ * o próximo dia 24 depois da compra mais recente do grupo. Transações
+ * ainda PENDING (sem billId — fatura não fechou) entram juntas num
+ * lançamento "em aberto", sempre previsto, que cresce a cada sync até
+ * ganharem billId de verdade.
+ */
+function pluggyBillEntries(){
+  const byBill={},open=[];
+  for(const t of pluggyTx){
+    if(t.ok&&t.billId)(byBill[t.billId]=byBill[t.billId]||[]).push(t);
+    else open.push(t);
+  }
+  const entries=[];
+  Object.keys(byBill).forEach(billId=>{
+    const group=byBill[billId];
+    const total=group.reduce((s,t)=>s+t.valor,0);
+    const maxDate=group.reduce((m,t)=>t.data>m?t.data:m,group[0].data);
+    const due=nextDueDate(maxDate,FATURA_DIA);
+    entries.push({id:"fat-"+billId,data:due,desc:"Fatura Nubank",valor:total,
+     tipo:"d",cat:"car",conta:"cc",ok:due<=todayISO(),imported:true,isFatura:true,count:group.length});
+  });
+  if(open.length){
+    const total=open.reduce((s,t)=>s+t.valor,0);
+    entries.push({id:"fat-aberta",data:nextDueDate(todayISO(),FATURA_DIA),desc:"Fatura Nubank (em aberto)",
+     valor:total,tipo:"d",cat:"car",conta:"cc",ok:false,imported:true,isFatura:true,count:open.length});
+  }
+  return entries;
+}
+const allTx=()=>S.tx.concat(pluggyBillEntries());
+const txs=c=>{
+  if(c==="nubank")return S.tx.filter(t=>t.conta==="nubank").concat(pluggyTx);
+  return allTx().filter(t=>c==="all"||t.conta===c);
+};
 const opening=c=>S.accounts.filter(a=>c==="all"||a.id===c).reduce((s,a)=>s+a.saldoInicial,0);
 function balanceBefore(d,c,onlyOk){let b=opening(c);for(const t of txs(c))if(t.data<d&&(!onlyOk||t.ok))b+=signed(t);return b}
 const realNow=c=>{let b=opening(c);for(const t of txs(c))if(t.ok)b+=signed(t);return b};
@@ -314,7 +369,8 @@ function rowHTML(t,showDate){
   const c=catOf(t.cat),a=accOf(t.conta),T=todayISO();
   const late=!t.ok&&t.data<T;
   let badges="";
-  if(t.imported)badges+='<span class="pill">Nubank</span>';
+  if(t.isFatura)badges+='<span class="pill">'+t.count+' compras</span>';
+  else if(t.imported)badges+='<span class="pill">Nubank</span>';
   if(late)badges+='<span class="pill late">Atrasado</span>';
   else if(!t.ok)badges+='<span class="pill plan">Previsto</span>';
   if(t.rep==="p")badges+='<span class="pill">'+t.parcela+"/"+t.total+"</span>";
@@ -437,8 +493,8 @@ async function sendMagicLink(e){
 function viewContas(){
   const T=todayISO(),endM=iso(new Date(cur.y,cur.m+1,0));
   const cards=S.accounts.map(a=>{
-    const used=allTx().some(t=>t.conta===a.id);
-    let proj=a.saldoInicial;allTx().forEach(t=>{if(t.conta===a.id&&t.data<=endM)proj+=signed(t)});
+    const used=txs(a.id).length>0;
+    let proj=a.saldoInicial;txs(a.id).forEach(t=>{if(t.data<=endM)proj+=signed(t)});
     return '<div class="acc"><div class="editrow"><input type="color" data-acc="'+a.id+'" data-k="cor" value="'+a.cor+'" aria-label="Cor"><input class="field" data-acc="'+a.id+'" data-k="nome" value="'+esc(a.nome)+'" aria-label="Nome da conta"><button class="btn sm danger" data-act="delacc" data-id="'+a.id+'"'+(used||S.accounts.length<2?" disabled":"")+' title="'+(used?"Conta com lançamentos não pode ser excluída":S.accounts.length<2?"É preciso ter ao menos uma conta":"Excluir conta")+'">Excluir</button></div>'
      +'<div><span class="lbl">Saldo atual</span><div class="big num '+(realNow(a.id)<0?"neg":"")+'">'+money(realNow(a.id))+'</div><div class="mini">Previsto em '+fmtShort(endM)+': <b class="num">'+money(proj)+'</b></div></div>'
      /* O rótulo é chapéu (caixa alta, tracking aberto) e chapéu de seis palavras
@@ -455,7 +511,7 @@ function viewCats(){
   const block=(tipo,titulo)=>{
     const list=S.categories.filter(c=>c.tipo===tipo);
     return '<section class="panel"><h2>'+titulo+'</h2><p class="sub">'+list.length+' categorias</p><div class="catlist">'+list.map(c=>{
-      const used=allTx().some(t=>t.cat===c.id);
+      const used=everyTx().some(t=>t.cat===c.id);
       return '<div class="editrow"><input type="color" data-cat="'+c.id+'" data-k="cor" value="'+c.cor+'" aria-label="Cor"><input class="field" data-cat="'+c.id+'" data-k="nome" value="'+esc(c.nome)+'" aria-label="Nome da categoria"><button class="btn sm danger" data-act="delcat" data-id="'+c.id+'"'+(used?" disabled":"")+' title="'+(used?"Categoria em uso":"Excluir categoria")+'">Excluir</button></div>';
     }).join("")+'</div><div class="actions"><button class="btn" data-act="addcat" data-tipo="'+tipo+'">Nova categoria</button></div></section>';
   };
@@ -626,7 +682,7 @@ const H={
   googleLink(){supa.auth.linkIdentity({provider:"google",options:{redirectTo:location.origin+location.pathname}})},
   async export(){
     const rows=[["Data","Descrição","Tipo","Valor","Categoria","Conta","Status","Parcela"]];
-    allTx().slice().sort((a,b)=>a.data<b.data?-1:a.data>b.data?1:0).forEach(t=>rows.push([t.data,t.desc,t.tipo==="r"?"Receita":"Despesa",inMoney(signed(t)),catOf(t.cat).nome,accOf(t.conta).nome,t.ok?"Realizado":"Previsto",t.rep==="p"?t.parcela+"/"+t.total:""]));
+    everyTx().slice().sort((a,b)=>a.data<b.data?-1:a.data>b.data?1:0).forEach(t=>rows.push([t.data,t.desc,t.tipo==="r"?"Receita":"Despesa",inMoney(signed(t)),catOf(t.cat).nome,accOf(t.conta).nome,t.ok?"Realizado":"Previsto",t.rep==="p"?t.parcela+"/"+t.total:""]));
     const data="﻿"+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\r\n");
     try{await downloads.save({filename:"aje-"+todayISO()+".csv",data});toast("Arquivo salvo")}catch(e){if(e&&e.code!=="declined")toast("Não foi possível exportar")}
   }

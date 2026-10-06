@@ -147,9 +147,17 @@ granularizar aqui.
   escritores nunca tocam a mesma linha.
 - No navegador, essas linhas entram numa variável `pluggyTx` separada de
   `S` (não `S.pluggyTx`) — de propósito, pra nunca serem serializadas por
-  `persist()`/`clone(S)` e vazarem pro `app_state` sem querer. `allTx()` em
-  `app.js` junta `S.tx` com `pluggyTx` só na hora de ler; nada disso é
+  `persist()`/`clone(S)` e vazarem pro `app_state` sem querer. Nada disso é
   gravado de volta.
+- As compras individuais não contam separadamente no saldo — isso
+  duplicaria a despesa quando a fatura também descontasse da conta
+  corrente. `pluggyBillEntries()` em `app.js` agrupa as compras por
+  `billId` (o que a própria Pluggy/Nubank já atribui a cada transação
+  fechada) num lançamento único por fatura, na conta corrente, categoria
+  Cartão de crédito. É esse agregado que `allTx()`/`txs()` usa pro
+  saldo geral; as compras individuais só aparecem ao filtrar
+  especificamente pela conta "Nubank" (mesmo seletor de conta que já existe
+  nas telas) — é como ver o detalhe por trás do agregado, sem tela nova.
 - O webhook é verificado pelo header `x-webhook-secret` (segredo
   compartilhado que a própria Pluggy devolve, configurado no passo 6 — não
   é assinatura HMAC, mas já prova que a chamada veio de quem conhece o
@@ -177,3 +185,9 @@ granularizar aqui.
   comum entre agregadores, mas não testada contra um extrato real até a
   primeira sincronização de alguém. Se receita e despesa aparecerem
   trocadas, inverta a constante `PLUGGY_AMOUNT_SIGN` no topo desse arquivo.
+- **Data de vencimento da fatura é aproximada.** Não temos a data real de
+  fechamento (o endpoint de faturas devolve 403 — ver acima), então
+  `nextDueDate()` em `app.js` usa o próximo dia 24 (constante `FATURA_DIA`)
+  depois da compra mais recente de cada `billId`. Deve bater na maioria dos
+  meses, mas compras perto da virada do ciclo podem cair no mês errado —
+  vale conferir contra a fatura real de vez em quando.
