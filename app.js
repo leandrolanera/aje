@@ -192,7 +192,7 @@ function supaRef(uid){
 function mapPluggyRow(row){
   return {id:"pg-"+row.transaction_id,data:row.date,desc:row.description,
    valor:Math.abs(row.amount_cents),tipo:row.tipo,cat:mapCategory(row.category_pluggy),
-   conta:"nubank",ok:row.status==="POSTED",imported:true,billId:row.bill_id};
+   conta:"nubank",ok:row.status==="POSTED",imported:true};
 }
 function attachPluggy(uid){
   const load=()=>supa.from("pluggy_tx").select("*").eq("user_id",uid).then(({data,error})=>{
@@ -270,43 +270,47 @@ const accOf=id=>S.accounts.find(a=>a.id===id)||{nome:"—",cor:"#7A7469"};
      compras individuais em vez da fatura — é o "desagrupar" ao filtrar por
      essa conta, sem precisar de tela nova. */
 const everyTx=()=>S.tx.concat(pluggyTx);
-const FATURA_DIA=24; // vencimento fixo da fatura do Nubank, informado pelo usuário
-/* Primeiro dia `dia` estritamente depois de `afterISO`. */
-function nextDueDate(afterISO,dia){
-  const thisMonth=afterISO.slice(0,8)+pad(dia);
-  return thisMonth>afterISO?thisMonth:addMonths(afterISO,1,dia);
-}
+const FATURA_DIA=24;    // dia do vencimento da fatura
+const FATURA_FECHA=17;  // dia do fechamento (padrão Nubank: 7 dias antes do vencimento)
 /*
- * Agrupa por billId (quem a própria Pluggy/Nubank já atribuiu à transação
- * POSTED), não por calendário — não temos a data real de fechamento da
- * fatura (o endpoint /bills devolve 403, fora do tier gratuito do Meu
- * Pluggy, ver PLUGGY.md). A data de vencimento de cada grupo é aproximada:
- * o próximo dia 24 depois da compra mais recente do grupo. Transações
- * ainda PENDING (sem billId — fatura não fechou) entram juntas num
- * lançamento "em aberto", sempre previsto, que cresce a cada sync até
- * ganharem billId de verdade.
+ * Vencimento da fatura em que uma compra feita em `dataISO` cai: até o dia do
+ * fechamento entra na fatura deste mês; depois dele, só na do mês seguinte.
+ */
+function faturaDe(dataISO){
+  const base=dataISO.slice(0,8)+pad(FATURA_DIA);
+  return Number(dataISO.slice(8,10))<=FATURA_FECHA?base:addMonths(base,1,FATURA_DIA);
+}
+/* A fatura é paga pela conta corrente. "cc" é o id que o app cria por padrão,
+   mas se essa conta tiver sido recriada com outro id o lançamento iria parar
+   numa conta inexistente — sumindo da previsão da conta real. */
+const contaFatura=()=>S.accounts.some(a=>a.id==="cc")?"cc"
+ :(S.accounts.find(a=>a.id!=="nubank")||S.accounts[0]||{id:"cc"}).id;
+/*
+ * Uma fatura por mês de vencimento, somando as compras daquele ciclo.
+ *
+ * O agrupamento é por DATA, não pelo `billId` da Pluggy: no tier gratuito do
+ * Meu Pluggy o produto de faturas não está liberado (o endpoint /bills devolve
+ * 403, ver PLUGGY.md), e na prática nenhuma transação vem com `billId`
+ * preenchido. A data, essa sim, vem sempre — inclusive nas parcelas futuras,
+ * que a Pluggy já devolve com a data do mês em que serão cobradas. É daí que
+ * saem as faturas futuras: elas não são projeção nossa, são as parcelas já
+ * contratadas caindo no ciclo delas.
  */
 function pluggyBillEntries(){
-  const byBill={},open=[];
+  const byVenc={};
   for(const t of pluggyTx){
-    if(t.ok&&t.billId)(byBill[t.billId]=byBill[t.billId]||[]).push(t);
-    else open.push(t);
+    const venc=faturaDe(t.data);
+    (byVenc[venc]=byVenc[venc]||[]).push(t);
   }
-  const entries=[];
-  Object.keys(byBill).forEach(billId=>{
-    const group=byBill[billId];
-    const total=group.reduce((s,t)=>s+t.valor,0);
-    const maxDate=group.reduce((m,t)=>t.data>m?t.data:m,group[0].data);
-    const due=nextDueDate(maxDate,FATURA_DIA);
-    entries.push({id:"fat-"+billId,data:due,desc:"Fatura Nubank",valor:total,
-     tipo:"d",cat:"car",conta:"cc",ok:due<=todayISO(),imported:true,isFatura:true,count:group.length});
-  });
-  if(open.length){
-    const total=open.reduce((s,t)=>s+t.valor,0);
-    entries.push({id:"fat-aberta",data:nextDueDate(todayISO(),FATURA_DIA),desc:"Fatura Nubank (em aberto)",
-     valor:total,tipo:"d",cat:"car",conta:"cc",ok:false,imported:true,isFatura:true,count:open.length});
-  }
-  return entries;
+  const T=todayISO(),conta=contaFatura();
+  return Object.keys(byVenc).map(venc=>{
+    const group=byVenc[venc];
+    /* Soma com sinal: compra aumenta a fatura, estorno/pagamento abate. */
+    const total=-group.reduce((s,t)=>s+signed(t),0);
+    return {id:"fat-"+venc,data:venc,desc:"Fatura Nubank",valor:Math.abs(total),
+     tipo:total<0?"r":"d",cat:"car",conta,ok:venc<=T,
+     imported:true,isFatura:true,count:group.length};
+  }).filter(e=>e.valor>0);
 }
 const allTx=()=>S.tx.concat(pluggyBillEntries());
 const txs=c=>{
@@ -369,7 +373,7 @@ function rowHTML(t,showDate){
   const c=catOf(t.cat),a=accOf(t.conta),T=todayISO();
   const late=!t.ok&&t.data<T;
   let badges="";
-  if(t.isFatura)badges+='<span class="pill">'+t.count+' compras</span>';
+  if(t.isFatura)badges+='<span class="pill">'+t.count+(t.count===1?" compra":" compras")+'</span>';
   else if(t.imported)badges+='<span class="pill">Nubank</span>';
   if(late)badges+='<span class="pill late">Atrasado</span>';
   else if(!t.ok)badges+='<span class="pill plan">Previsto</span>';
