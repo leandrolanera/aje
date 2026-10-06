@@ -46,10 +46,20 @@ async function fetchCreditAccounts(itemId) {
   return (results || []).filter(a => a.type === "CREDIT");
 }
 
-/* Transações recentes (inclui as ainda PENDING, sem billId) de uma conta. */
+/* Transações recentes (inclui as ainda PENDING, sem billId) de uma conta.
+   GET /transactions (v1, por página) foi descontinuado pela Pluggy em 2026
+   pra contas criadas depois de junho — devolve 410. O substituto, /v2/
+   transactions, pagina por cursor: cada resposta traz `next`, uma query
+   string pronta pra colar direto na mesma rota; `next: null` é o fim. */
 async function fetchRecentTransactions(accountId) {
-  const { results } = await pluggyGet("/transactions?accountId=" + encodeURIComponent(accountId) + "&pageSize=500");
-  return results || [];
+  let path = "/v2/transactions?accountId=" + encodeURIComponent(accountId);
+  const out = [];
+  while (path) {
+    const { results, next } = await pluggyGet(path);
+    out.push(...(results || []));
+    path = next ? "/v2/transactions" + next : null;
+  }
+  return out;
 }
 
 /* Faturas da conta e, para cada uma, as transações já POSTED vinculadas. */
