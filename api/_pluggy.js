@@ -1,7 +1,8 @@
 "use strict";
 /*
  * Módulo compartilhado entre pluggy-webhook.js e pluggy-sync.js — não é um
- * endpoint (fica em lib/, fora da varredura de funções do Netlify).
+ * endpoint: o prefixo `_` é o que faz o Vercel não expor o arquivo como rota.
+ * O fallback em netlify/functions/ também importa daqui.
  *
  * Risco aberto (ver PLUGGY.md "Limitações conhecidas"): a convenção de sinal
  * do campo `amount` da Pluggy não foi confirmada contra um payload real.

@@ -18,9 +18,9 @@ pra também sincronizar a fatura do Nubank automaticamente (opcional, ver
 
 ## Publicar
 
-O app é estático (sem build). Suba a pasta para GitHub Pages, Netlify ou
-Vercel e está no ar — os arquivos `netlify.toml`/`vercel.json` já cobrem os
-dois primeiros. Passo a passo e a sincronização entre dispositivos estão em
+O app é estático (sem build) e está publicado no **Vercel**, que também roda
+as funções de servidor em `api/`. O `vercel.json` cobre a configuração.
+Passo a passo e a sincronização entre dispositivos estão em
 [SUPABASE.md](SUPABASE.md).
 
 ## Arquivos
@@ -37,7 +37,12 @@ dois primeiros. Passo a passo e a sincronização entre dispositivos estão em
   site.
 - `PLUGGY.md`: como ligar a sincronização automática da fatura do Nubank
   (opcional, precisa do Supabase já configurado).
-- `netlify/functions/`: as únicas partes do projeto que rodam num servidor
-  (não no navegador) — buscam a fatura na API da Pluggy e gravam no
-  Supabase. `package.json` na raiz é só a dependência delas
-  (`@supabase/supabase-js`); o site em si continua sem build.
+- `api/`: as únicas partes do projeto que rodam num servidor (não no
+  navegador) — buscam a fatura na API da Pluggy e gravam no Supabase. O
+  `_pluggy.js` é o módulo compartilhado: o prefixo `_` é o que impede o
+  Vercel de transformá-lo numa rota. `package.json` na raiz é só a
+  dependência delas (`@supabase/supabase-js`); o site em si continua sem
+  build.
+- `netlify/`, `netlify.toml`: hospedagem anterior, mantida por ora como
+  alternativa. Fica fora do deploy pelo `.vercelignore` — se fosse junto, o
+  Vercel serviria esse código como arquivo estático.

@@ -1,8 +1,9 @@
 *.zip
 
-# Local Netlify folder
+# Pastas locais das CLIs do Netlify/Vercel
 .netlify
+.vercel
 
-# Dependências das Netlify Functions (netlify/functions/) — instaladas pelo
-# Netlify no deploy a partir do package.json/package-lock.json
+# Dependências das funções de servidor (api/) — instaladas pelo Vercel no
+# deploy a partir do package.json/package-lock.json
 node_modules

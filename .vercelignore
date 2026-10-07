@@ -1,0 +1,13 @@
+# A pasta das Netlify Functions fica no repositório como fallback, mas não
+# pode subir pro Vercel: o site serve a raiz como estático, então o fonte das
+# funções ficaria acessível publicamente (foi o que acontecia no Netlify).
+# No Vercel o código de servidor vive só em api/, que não é servido estático.
+netlify/
+netlify.toml
+.netlify
+
+# Nada disso é parte do site e, subindo, viraria arquivo estático público.
+.claude
+*.zip
+
+node_modules

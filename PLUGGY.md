@@ -67,7 +67,7 @@ create policy "cada um só lê a própria linha"
   using (auth.uid() = user_id);
 
 -- sem policy de insert/update/delete pro client: só a service_role grava
--- aqui, a partir das Netlify Functions — o navegador só lê.
+-- aqui, a partir das funções em `api/` — o navegador só lê.
 
 alter publication supabase_realtime add table public.pluggy_tx;
 ```
@@ -75,9 +75,9 @@ alter publication supabase_realtime add table public.pluggy_tx;
 É uma tabela separada do `app_state` de propósito — ver "Como funciona"
 abaixo.
 
-## 4. Configurar as variáveis de ambiente no Netlify
+## 4. Configurar as variáveis de ambiente no Vercel
 
-Em **Site configuration → Environment variables**, crie:
+Em **Project Settings → Environment Variables**, crie:
 
 ```
 PLUGGY_CLIENT_ID
@@ -118,7 +118,7 @@ O webhook (próximo passo) só avisa de mudanças daqui pra frente — pra traze
 a fatura atual, rode uma vez:
 
 ```
-curl "https://SEU-SITE.netlify.app/.netlify/functions/pluggy-sync?key=SEU_PLUGGY_SYNC_SECRET"
+curl "https://SEU-SITE.vercel.app/api/pluggy-sync?key=SEU_PLUGGY_SYNC_SECRET"
 ```
 
 Seguro de rodar de novo quando quiser forçar um resync — é idempotente.
@@ -138,7 +138,7 @@ curl -X POST https://api.pluggy.ai/webhooks \
   -H "X-API-KEY: SUA_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "url": "https://SEU-SITE.netlify.app/.netlify/functions/pluggy-webhook",
+    "url": "https://SEU-SITE.vercel.app/api/pluggy-webhook",
     "event": "all",
     "headers": {"x-webhook-secret": "SEU_PLUGGY_WEBHOOK_SECRET"}
   }'
@@ -152,7 +152,7 @@ granularizar aqui.
 
 - As transações importadas vivem na tabela `pluggy_tx`, **separada** do
   `app_state` que já existe. `flush()` em `app.js` sobrescreve a linha
-  inteira do `app_state` por `rev` — se a Netlify Function escrevesse ali ao
+  inteira do `app_state` por `rev` — se a função de servidor escrevesse ali ao
   mesmo tempo que uma edição manual estivesse pendente, um dos dois lados
   perderia a escrita silenciosamente. Com tabela própria, os dois
   escritores nunca tocam a mesma linha.
@@ -201,7 +201,7 @@ granularizar aqui.
 - **Sincronização é diária**, não por compra — ver o aviso no topo deste
   arquivo.
 - **Convenção de sinal do valor** (`amount_cents`/`tipo` em
-  `netlify/functions/lib/pluggy.js`) foi implementada com a convenção mais
+  `api/_pluggy.js`) foi implementada com a convenção mais
   comum entre agregadores, mas não testada contra um extrato real até a
   primeira sincronização de alguém. Se receita e despesa aparecerem
   trocadas, inverta a constante `PLUGGY_AMOUNT_SIGN` no topo desse arquivo.

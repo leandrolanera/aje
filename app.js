@@ -182,7 +182,7 @@ function supaRef(uid){
   };
 }
 /* pluggy_tx é uma tabela separada do app_state de propósito (ver PLUGGY.md):
-   quem grava nela é só a Netlify Function, nunca o navegador, então não tem
+   quem grava nela é só a função de servidor (api/), nunca o navegador, então não tem
    o risco de corrida que existiria se fosse o mesmo blob do app_state.
    `pluggyTx` fica FORA de `S` por isso mesmo — se fosse S.pluggyTx,
    persist()/flush() clonariam e subiriam ele pro app_state sem querer

@@ -5,9 +5,10 @@
  * por uma chave em query string, já que é alcançável por quem souber a URL.
  *
  * Uso: GET /.netlify/functions/pluggy-sync?key=SEU_PLUGGY_SYNC_SECRET
+ * (fallback — a versão em uso é api/pluggy-sync.js, no Vercel)
  */
 const { createClient } = require("@supabase/supabase-js");
-const { syncItem } = require("./lib/pluggy");
+const { syncItem } = require("../../api/_pluggy.js");
 
 exports.handler = async event => {
   const key = (event.queryStringParameters || {}).key;

@@ -14,30 +14,33 @@
  * transação falsa mesmo que descubra o segredo.
  */
 const { createClient } = require("@supabase/supabase-js");
-const { syncItem } = require("../../api/_pluggy.js");
+const { syncItem } = require("./_pluggy.js");
 
-exports.handler = async event => {
-  if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method not allowed" };
+module.exports = async (req, res) => {
+  if (req.method !== "POST") return res.status(405).send("Method not allowed");
 
-  const secret = event.headers["x-webhook-secret"];
+  const secret = req.headers["x-webhook-secret"];
   if (!secret || secret !== process.env.PLUGGY_WEBHOOK_SECRET) {
-    return { statusCode: 403, body: "Segredo inválido" };
+    return res.status(403).send("Segredo inválido");
   }
 
+  /* No Vercel `req.body` já vem parseado quando o Content-Type é JSON, mas é
+     um getter que lança se o corpo vier malformado — daí o try/catch. Corpo
+     inválido não impede o sync: o payload é só gatilho, nunca fonte de dado. */
   let payload = {};
-  try { payload = JSON.parse(event.body || "{}") } catch (e) { /* segue mesmo sem corpo válido — é só gatilho */ }
+  try { payload = req.body || {} } catch (e) { /* segue mesmo sem corpo válido */ }
 
   const relevant = ["item/updated", "transactions/created", "transactions/updated"];
   if (payload.event && !relevant.includes(payload.event)) {
-    return { statusCode: 200, body: "ignorado: " + payload.event };
+    return res.status(200).send("ignorado: " + payload.event);
   }
 
-  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
   try {
+    const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
     const result = await syncItem(supabase);
-    return { statusCode: 200, body: JSON.stringify(result) };
+    return res.status(200).json(result);
   } catch (e) {
     console.error(e);
-    return { statusCode: 500, body: String(e.message || e) };
+    return res.status(500).send(String(e.message || e));
   }
 };
