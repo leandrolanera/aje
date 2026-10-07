@@ -209,6 +209,11 @@ granularizar aqui.
 
 - **Sincronização é diária**, não por compra — ver o aviso no topo deste
   arquivo.
+- **Faturas de antes do começo do controle não entram no saldo.** A Pluggy
+  devolve o histórico inteiro do cartão; as faturas que venceram antes do
+  primeiro lançamento manual (`inicioControle()` em `app.js`) já tinham
+  saído da conta antes do saldo inicial, e somá-las de novo derrubava o
+  saldo em dezenas de milhares. Elas seguem visíveis na conta Nubank.
 - **O app lê `pluggy_tx` em páginas de 1000** (`fetchPluggyRows` em
   `app.js`): é o máximo que o Supabase devolve por requisição, e o
   histórico completo passa disso. Sem paginar, o excedente era cortado em

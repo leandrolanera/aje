@@ -344,7 +344,19 @@ function pluggyBillEntries(){
      imported:true,isFatura:true,count:group.length};
   }).filter(e=>e.valor>0);
 }
-const allTx=()=>S.tx.concat(pluggyBillEntries());
+/*
+ * A Pluggy devolve o histórico inteiro do cartão, inclusive faturas vencidas
+ * muito antes de o app começar a ser usado. Essas já saíram da conta corrente
+ * antes do saldo inicial — somá-las de novo jogava dezenas de milhares de
+ * reais de despesa no saldo. Só entram no saldo/fluxo as faturas que vencem a
+ * partir do primeiro lançamento manual (o começo do controle no app); as
+ * anteriores continuam visíveis filtrando pela conta Nubank.
+ */
+const inicioControle=()=>S.tx.reduce((m,t)=>!m||t.data<m?t.data:m,"");
+const allTx=()=>{
+  const ini=inicioControle();
+  return S.tx.concat(pluggyBillEntries().filter(f=>!ini||f.data>=ini));
+};
 const txs=c=>{
   if(c==="nubank")return S.tx.filter(t=>t.conta==="nubank").concat(pluggyTx);
   return allTx().filter(t=>c==="all"||t.conta===c);
