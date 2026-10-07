@@ -46,3 +46,5 @@ Passo a passo e a sincronização entre dispositivos estão em
 - `netlify/`, `netlify.toml`: hospedagem anterior, mantida por ora como
   alternativa. Fica fora do deploy pelo `.vercelignore` — se fosse junto, o
   Vercel serviria esse código como arquivo estático.
+
+
