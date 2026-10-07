@@ -192,19 +192,36 @@ function supaRef(uid){
 function mapPluggyRow(row){
   return {id:"pg-"+row.transaction_id,data:row.date,desc:row.description,
    valor:Math.abs(row.amount_cents),tipo:row.tipo,cat:mapCategory(row.category_pluggy),
-   conta:"nubank",ok:row.status==="POSTED",imported:true,
-   pagamento:row.category_pluggy==="Credit card payment"||/^pagamento recebido/i.test(row.description||"")};
+   conta:"nubank",ok:row.status==="POSTED",imported:true,fatura:row.fatura||null,
+   /* Só o crédito: "Parcelamento de Fatura" também vem como Credit card
+      payment, mas é débito — parcela que entra na fatura e tem que somar. */
+   pagamento:row.tipo==="r"&&(row.category_pluggy==="Credit card payment"||/^pagamento recebido/i.test(row.description||""))};
+}
+/* O PostgREST do Supabase devolve no máximo 1000 linhas por requisição, e o
+   histórico completo do Nubank passa disso — sem paginar, o que sobra era
+   cortado em silêncio e sumia da fatura. `raw` fica de fora (é o payload
+   inteiro da Pluggy); dele só interessa o mês da fatura. */
+const PLUGGY_COLS="transaction_id,date,description,amount_cents,tipo,status,category_pluggy,"
+ +"fatura:raw->creditCardMetadata->>billForecastDate";
+async function fetchPluggyRows(uid){
+  let rows=[];
+  for(let from=0;;from+=1000){
+    const {data,error}=await supa.from("pluggy_tx").select(PLUGGY_COLS).eq("user_id",uid)
+     .order("transaction_id").range(from,from+999);
+    if(error)throw error;
+    rows=rows.concat(data||[]);
+    if(!data||data.length<1000)return rows;
+  }
 }
 function attachPluggy(uid){
-  const load=()=>supa.from("pluggy_tx").select("*").eq("user_id",uid).then(({data,error})=>{
-    if(error)return;
-    pluggyTx=(data||[]).map(mapPluggyRow);
+  const load=()=>fetchPluggyRows(uid).then(data=>{
+    pluggyTx=data.map(mapPluggyRow);
     if(pluggyTx.length&&!S.accounts.some(a=>a.id==="nubank")){
       S.accounts.push({id:"nubank",nome:"Nubank",saldoInicial:0,cor:"#820AD1"});
       persist();
     }
     render();
-  });
+  },()=>{});
   load();
   const channel=supa.channel("pluggy_tx_"+uid).on("postgres_changes",
    {event:"*",schema:"public",table:"pluggy_tx",filter:"user_id=eq."+uid},load
@@ -276,7 +293,12 @@ const FATURA_FECHA=17;  // dia do fechamento (padrão Nubank: 7 dias antes do ve
 /*
  * Vencimento da fatura em que uma compra feita em `dataISO` cai: até o dia do
  * fechamento entra na fatura deste mês; depois dele, só na do mês seguinte.
+ * É só o fallback: a Pluggy diz o mês da fatura de cada transação
+ * (creditCardMetadata.billForecastDate) e é ele que vale quando vem — o dia
+ * do fechamento do Nubank varia de mês a mês, e a parcela de compra antiga
+ * vem datada do fechamento, não do mês em que é cobrada.
  */
+const vencDe=t=>t.fatura?t.fatura+"-"+pad(FATURA_DIA):faturaDe(t.data);
 function faturaDe(dataISO){
   const base=dataISO.slice(0,8)+pad(FATURA_DIA);
   return Number(dataISO.slice(8,10))<=FATURA_FECHA?base:addMonths(base,1,FATURA_DIA);
@@ -309,7 +331,7 @@ function pluggyBillEntries(){
   const byVenc={};
   for(const t of pluggyTx){
     if(t.pagamento)continue;
-    const venc=faturaDe(t.data);
+    const venc=vencDe(t);
     (byVenc[venc]=byVenc[venc]||[]).push(t);
   }
   const T=todayISO(),conta=contaFatura();

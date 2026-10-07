@@ -168,9 +168,15 @@ granularizar aqui.
   compras individuais só aparecem ao filtrar especificamente pela conta
   "Nubank" (mesmo seletor de conta que já existe nas telas) — é como ver o
   detalhe por trás do agregado, sem tela nova.
-- O ciclo é calculado pela **data** da compra (`faturaDe()`), não pelo
-  `billId` da Pluggy: no tier gratuito nenhuma transação vem com `billId`
-  preenchido (ver "Limitações conhecidas"). Até o dia do fechamento
+- O ciclo vem do mês da fatura que a própria Pluggy informa em cada
+  transação (`creditCardMetadata.billForecastDate`, lido em `vencDe()`), não
+  do `billId`: no tier gratuito nenhuma transação vem com `billId`
+  preenchido (ver "Limitações conhecidas"). Conferido contra o extrato real,
+  esse campo é o que bate com o Nubank — o dia do fechamento varia de mês a
+  mês, e a parcela de compra antiga vem datada do fechamento (ex.: 2/10
+  datada de 17/09 que é cobrada na fatura de outubro).
+- Só quando a transação vem sem esse campo o ciclo cai no cálculo pela
+  **data** (`faturaDe()`). Até o dia do fechamento
   (`FATURA_FECHA`, 17) a compra entra na fatura do próprio mês; depois dele,
   na do mês seguinte — o padrão do Nubank, que fecha 7 dias antes de vencer.
   A data é convertida pro horário de Brasília em `api/_pluggy.js` antes de
@@ -203,11 +209,17 @@ granularizar aqui.
 
 - **Sincronização é diária**, não por compra — ver o aviso no topo deste
   arquivo.
+- **O app lê `pluggy_tx` em páginas de 1000** (`fetchPluggyRows` em
+  `app.js`): é o máximo que o Supabase devolve por requisição, e o
+  histórico completo passa disso. Sem paginar, o excedente era cortado em
+  silêncio e sumia das faturas.
 - **Pagamento da fatura não entra na soma.** "Pagamento recebido"
   (categoria `Credit card payment`) aparece no extrato do Nubank, mas é o
   outro lado do lançamento "Fatura Nubank" da conta corrente. Como é pago
   no vencimento, depois do fechamento, somá-lo abateria a fatura do mês
   seguinte inteira. Ele continua visível ao filtrar pela conta Nubank.
+  Só o crédito sai: "Parcelamento de Fatura" vem na mesma categoria, mas é
+  débito (a parcela do acordo cobrada na fatura) e entra na soma.
 - **Nenhuma transação vem com `billId`.** O produto "Credit Card Bills" da
   Pluggy (endpoint `/bills`) está fora do tier gratuito e devolve 403 — na
   prática, 100% das transações chegam com `bill_id` nulo. Por isso o
