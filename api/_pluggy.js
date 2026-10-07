@@ -4,13 +4,26 @@
  * endpoint: o prefixo `_` é o que faz o Vercel não expor o arquivo como rota.
  * O fallback em netlify/functions/ também importa daqui.
  *
- * Risco aberto (ver PLUGGY.md "Limitações conhecidas"): a convenção de sinal
- * do campo `amount` da Pluggy não foi confirmada contra um payload real.
- * Assumimos aqui o padrão mais comum em agregadores (negativo = saiu da
- * conta/fatura, ou seja, despesa) — se o primeiro sync real mostrar receita e
- * despesa trocadas, inverta só a constante PLUGGY_AMOUNT_SIGN abaixo.
+ * Tipo (despesa/receita) sai do campo `type` da Pluggy (DEBIT/CREDIT), que
+ * não depende de convenção. Conferido contra o extrato real do Nubank: compra
+ * vem DEBIT com `amount` positivo, pagamento/estorno/IOF devolvido vem CREDIT
+ * com `amount` negativo. O sinal do `amount` fica só de fallback pra
+ * transação que venha sem `type`.
  */
-const PLUGGY_AMOUNT_SIGN = -1; // multiplique por isto antes de testar o sinal
+const PLUGGY_AMOUNT_SIGN = -1; // fallback: amount positivo = despesa
+
+/* A Pluggy manda a data em UTC ("2026-09-25T22:51:07Z"). Cortar o texto
+   direto joga compra feita depois das 21h de Brasília pro dia seguinte — e no
+   dia do fechamento isso muda a fatura. Brasil não tem horário de verão desde
+   2019, então UTC-3 fixo basta. Parcelas futuras vêm em 03:00Z (meia-noite
+   local) e não mudam de dia. */
+const BRT_OFFSET_MS = 3 * 60 * 60 * 1000;
+function localDate(s) {
+  if (!s) return "";
+  const ms = Date.parse(s);
+  if (!s.includes("T") || isNaN(ms)) return s.slice(0, 10);
+  return new Date(ms - BRT_OFFSET_MS).toISOString().slice(0, 10);
+}
 
 const PLUGGY_API = "https://api.pluggy.ai";
 
@@ -77,16 +90,17 @@ async function fetchRecentTransactions(accountId) {
 
 function mapTransaction(t, itemId, accountId) {
   const signedCents = Math.round(t.amount * 100) * PLUGGY_AMOUNT_SIGN;
+  const tipo = t.type === "DEBIT" ? "d" : t.type === "CREDIT" ? "r" : (signedCents < 0 ? "d" : "r");
   return {
     transaction_id: t.id,
     user_id: process.env.AJE_USER_ID,
     item_id: itemId,
     account_id: accountId,
     bill_id: t.billId || null,
-    date: (t.date || "").slice(0, 10),
+    date: localDate(t.date),
     description: t.description || t.descriptionRaw || "Nubank",
     amount_cents: Math.abs(signedCents),
-    tipo: signedCents < 0 ? "d" : "r",
+    tipo,
     status: t.status || "PENDING",
     category_pluggy: t.category || null,
     installment_number: (t.creditCardMetadata && t.creditCardMetadata.installmentNumber) || null,

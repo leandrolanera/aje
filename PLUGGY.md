@@ -173,6 +173,9 @@ granularizar aqui.
   preenchido (ver "Limitações conhecidas"). Até o dia do fechamento
   (`FATURA_FECHA`, 17) a compra entra na fatura do próprio mês; depois dele,
   na do mês seguinte — o padrão do Nubank, que fecha 7 dias antes de vencer.
+  A data é convertida pro horário de Brasília em `api/_pluggy.js` antes de
+  gravar (a Pluggy manda UTC), senão compra feita à noite no dia 17 iria pra
+  fatura errada.
 - **As faturas futuras saem de graça disso.** A Pluggy devolve as parcelas
   já contratadas como transações com a data do mês em que serão cobradas,
   então uma compra em 10x vira automaticamente uma linha em cada uma das
@@ -200,11 +203,11 @@ granularizar aqui.
 
 - **Sincronização é diária**, não por compra — ver o aviso no topo deste
   arquivo.
-- **Convenção de sinal do valor** (`amount_cents`/`tipo` em
-  `api/_pluggy.js`) foi implementada com a convenção mais
-  comum entre agregadores, mas não testada contra um extrato real até a
-  primeira sincronização de alguém. Se receita e despesa aparecerem
-  trocadas, inverta a constante `PLUGGY_AMOUNT_SIGN` no topo desse arquivo.
+- **Pagamento da fatura não entra na soma.** "Pagamento recebido"
+  (categoria `Credit card payment`) aparece no extrato do Nubank, mas é o
+  outro lado do lançamento "Fatura Nubank" da conta corrente. Como é pago
+  no vencimento, depois do fechamento, somá-lo abateria a fatura do mês
+  seguinte inteira. Ele continua visível ao filtrar pela conta Nubank.
 - **Nenhuma transação vem com `billId`.** O produto "Credit Card Bills" da
   Pluggy (endpoint `/bills`) está fora do tier gratuito e devolve 403 — na
   prática, 100% das transações chegam com `bill_id` nulo. Por isso o

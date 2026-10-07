@@ -192,7 +192,8 @@ function supaRef(uid){
 function mapPluggyRow(row){
   return {id:"pg-"+row.transaction_id,data:row.date,desc:row.description,
    valor:Math.abs(row.amount_cents),tipo:row.tipo,cat:mapCategory(row.category_pluggy),
-   conta:"nubank",ok:row.status==="POSTED",imported:true};
+   conta:"nubank",ok:row.status==="POSTED",imported:true,
+   pagamento:row.category_pluggy==="Credit card payment"||/^pagamento recebido/i.test(row.description||"")};
 }
 function attachPluggy(uid){
   const load=()=>supa.from("pluggy_tx").select("*").eq("user_id",uid).then(({data,error})=>{
@@ -296,16 +297,25 @@ const contaFatura=()=>S.accounts.some(a=>a.id==="cc")?"cc"
  * saem as faturas futuras: elas não são projeção nossa, são as parcelas já
  * contratadas caindo no ciclo delas.
  */
+/*
+ * O pagamento da fatura ("Pagamento recebido") fica de fora da soma. Ele é o
+ * outro lado do próprio lançamento "Fatura Nubank" na conta corrente; somá-lo
+ * também contaria o dinheiro duas vezes. E como é pago no vencimento (dia 24),
+ * depois do fechamento, ele caía no ciclo SEGUINTE e abatia a fatura do mês
+ * seguinte inteira. Estorno, IOF devolvido e créditos de atraso continuam na
+ * soma: esses sim fazem parte da fatura.
+ */
 function pluggyBillEntries(){
   const byVenc={};
   for(const t of pluggyTx){
+    if(t.pagamento)continue;
     const venc=faturaDe(t.data);
     (byVenc[venc]=byVenc[venc]||[]).push(t);
   }
   const T=todayISO(),conta=contaFatura();
   return Object.keys(byVenc).map(venc=>{
     const group=byVenc[venc];
-    /* Soma com sinal: compra aumenta a fatura, estorno/pagamento abate. */
+    /* Soma com sinal: compra aumenta a fatura, estorno/crédito abate. */
     const total=-group.reduce((s,t)=>s+signed(t),0);
     return {id:"fat-"+venc,data:venc,desc:"Fatura Nubank",valor:Math.abs(total),
      tipo:total<0?"r":"d",cat:"car",conta,ok:venc<=T,
@@ -374,6 +384,7 @@ function rowHTML(t,showDate){
   const late=!t.ok&&t.data<T;
   let badges="";
   if(t.isFatura)badges+='<span class="pill">'+t.count+(t.count===1?" compra":" compras")+'</span>';
+  else if(t.pagamento)badges+='<span class="pill">Pagamento da fatura</span>';
   else if(t.imported)badges+='<span class="pill">Nubank</span>';
   if(late)badges+='<span class="pill late">Atrasado</span>';
   else if(!t.ok)badges+='<span class="pill plan">Previsto</span>';
