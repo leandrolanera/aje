@@ -105,7 +105,12 @@ function mapTransaction(t, itemId, accountId) {
     category_pluggy: t.category || null,
     installment_number: (t.creditCardMetadata && t.creditCardMetadata.installmentNumber) || null,
     installment_total: (t.creditCardMetadata && t.creditCardMetadata.totalInstallments) || null,
-    raw: t
+    raw: t,
+    /* Precisa ser explícito: o `default now()` da coluna só vale no INSERT, e
+       como o upsert é "do update" o valor ficaria congelado na primeira vez
+       que a transação foi vista. É o maior desses timestamps que o app usa
+       pra mostrar quando sincronizou pela última vez. */
+    updated_at: new Date().toISOString()
   };
 }
 

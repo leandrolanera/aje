@@ -16,6 +16,17 @@ const MESC=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","d
 const DIA=["dom","seg","ter","qua","qui","sex","sáb"];
 const fmtDay=s=>{const d=parse(s);return DIA[d.getDay()]+", "+d.getDate()+" "+MESC[d.getMonth()]};
 const fmtShort=s=>{const p=s.split("-");return p[2]+"/"+p[1]};
+/* "há 20 min" responde na hora a pergunta que importa — isto está velho? —
+   melhor que uma data absoluta. Passando de um dia a conta perde a graça e a
+   data cheia volta a ser mais informativa. */
+function desde(iso8601){
+  const d=new Date(iso8601);if(isNaN(d))return "";
+  const min=Math.floor((Date.now()-d.getTime())/60000);
+  if(min<1)return "agora";
+  if(min<60)return "há "+min+" min";
+  if(min<1440)return "há "+Math.floor(min/60)+" h";
+  return "em "+pad(d.getDate())+"/"+pad(d.getMonth()+1)+" às "+pad(d.getHours())+":"+pad(d.getMinutes());
+}
 const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3);
 const clone=o=>JSON.parse(JSON.stringify(o));
 const signed=t=>t.tipo==="r"?t.valor:-t.valor;
@@ -116,7 +127,7 @@ const LS="saldo-diario-v1";
    localStorage, exatamente como antes de existir sincronização. */
 const supa=(window.SUPABASE_URL&&window.SUPABASE_ANON_KEY&&window.supabase)
   ?window.supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY):null;
-let S=null,ref=null,unsub=null,downloads=null,saving=false,dirty=false,saveTimer=0,authUser=null,pluggyUnsub=null,pluggyTx=[];
+let S=null,ref=null,unsub=null,downloads=null,saving=false,dirty=false,saveTimer=0,authUser=null,pluggyUnsub=null,pluggyTx=[],pluggySyncAt=null;
 let view="geral",armed=null,armTimer=0,toastTimer=0;
 const now0=new Date();
 let cur={y:now0.getFullYear(),m:now0.getMonth()};
@@ -213,8 +224,16 @@ async function fetchPluggyRows(uid){
     if(!data||data.length<1000)return rows;
   }
 }
+/* Quando o sync gravou pela última vez. Consulta à parte, de uma linha só,
+   em vez de trazer `updated_at` nas 1300+ linhas do extrato só pra achar o
+   maior valor. */
+function fetchPluggySyncAt(uid){
+  return supa.from("pluggy_tx").select("updated_at").eq("user_id",uid)
+   .order("updated_at",{ascending:false}).limit(1).maybeSingle()
+   .then(({data})=>{pluggySyncAt=data&&data.updated_at||null},()=>{});
+}
 function attachPluggy(uid){
-  const load=()=>fetchPluggyRows(uid).then(data=>{
+  const load=()=>Promise.all([fetchPluggyRows(uid),fetchPluggySyncAt(uid)]).then(([data])=>{
     pluggyTx=data.map(mapPluggyRow);
     if(pluggyTx.length&&!S.accounts.some(a=>a.id==="nubank")){
       S.accounts.push({id:"nubank",nome:"Nubank",saldoInicial:0,cor:"#820AD1"});
@@ -242,7 +261,7 @@ function setupAuth(){
         pluggyUnsub=attachPluggy(session.user.id);
       }else if(event==="SIGNED_OUT"){
         authUser=null;if(unsub){unsub();unsub=null}ref=null;setSync("local");
-        if(pluggyUnsub){pluggyUnsub();pluggyUnsub=null}pluggyTx=[];render();
+        if(pluggyUnsub){pluggyUnsub();pluggyUnsub=null}pluggyTx=[];pluggySyncAt=null;render();
       }else if(event==="USER_UPDATED"&&session){
         authUser=session.user;render();
       }
@@ -545,7 +564,10 @@ function viewContas(){
     const used=txs(a.id).length>0;
     let proj=a.saldoInicial;txs(a.id).forEach(t=>{if(t.data<=endM)proj+=signed(t)});
     return '<div class="acc"><div class="editrow"><input type="color" data-acc="'+a.id+'" data-k="cor" value="'+a.cor+'" aria-label="Cor"><input class="field" data-acc="'+a.id+'" data-k="nome" value="'+esc(a.nome)+'" aria-label="Nome da conta"><button class="btn sm danger" data-act="delacc" data-id="'+a.id+'"'+(used||S.accounts.length<2?" disabled":"")+' title="'+(used?"Conta com lançamentos não pode ser excluída":S.accounts.length<2?"É preciso ter ao menos uma conta":"Excluir conta")+'">Excluir</button></div>'
-     +'<div><span class="lbl">Saldo atual</span><div class="big num '+(realNow(a.id)<0?"neg":"")+'">'+money(realNow(a.id))+'</div><div class="mini">Previsto em '+fmtShort(endM)+': <b class="num">'+money(proj)+'</b></div></div>'
+     +'<div><span class="lbl">Saldo atual</span><div class="big num '+(realNow(a.id)<0?"neg":"")+'">'+money(realNow(a.id))+'</div><div class="mini">Previsto em '+fmtShort(endM)+': <b class="num">'+money(proj)+'</b></div>'
+     /* Só a conta importada tem o que dizer aqui: as outras são alimentadas à
+        mão, então "última sincronização" não significa nada pra elas. */
+     +(a.id==="nubank"&&pluggySyncAt?'<div class="mini">Sincronizado com o banco '+esc(desde(pluggySyncAt))+'</div>':"")+'</div>'
      /* O rótulo é chapéu (caixa alta, tracking aberto) e chapéu de seis palavras
         não se lê — a explicação desceu para a linha de apoio, em caixa normal. */
      +'<div><label class="lbl" for="si-'+a.id+'">Saldo inicial</label><input class="field num" id="si-'+a.id+'" data-acc="'+a.id+'" data-k="saldo" inputmode="decimal" value="'+inMoney(a.saldoInicial)+'" style="width:100%"><div class="mini">Quanto havia na conta antes do primeiro lançamento</div></div></div>';
