@@ -118,7 +118,7 @@ O webhook (próximo passo) só avisa de mudanças daqui pra frente — pra traze
 a fatura atual, rode uma vez:
 
 ```
-curl "https://SEU-SITE.vercel.app/api/pluggy-sync?key=SEU_PLUGGY_SYNC_SECRET"
+curl "https://aje-woad.vercel.app/api/pluggy-sync?key=SEU_PLUGGY_SYNC_SECRET"
 ```
 
 Seguro de rodar de novo quando quiser forçar um resync — é idempotente.
@@ -138,7 +138,7 @@ curl -X POST https://api.pluggy.ai/webhooks \
   -H "X-API-KEY: SUA_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "url": "https://SEU-SITE.vercel.app/api/pluggy-webhook",
+    "url": "https://aje-woad.vercel.app/api/pluggy-webhook",
     "event": "all",
     "headers": {"x-webhook-secret": "SEU_PLUGGY_WEBHOOK_SECRET"}
   }'
