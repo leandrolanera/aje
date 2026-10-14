@@ -208,6 +208,32 @@ function mapPluggyRow(row){
       payment, mas é débito — parcela que entra na fatura e tem que somar. */
    pagamento:row.tipo==="r"&&(row.category_pluggy==="Credit card payment"||/^pagamento recebido/i.test(row.description||""))};
 }
+/*
+ * A Pluggy às vezes emite um `transaction_id` NOVO ao confirmar uma
+ * transação, em vez de atualizar a que estava PENDING — o upsert guarda as
+ * duas e a compra entraria dobrado na fatura (pluggyBillEntries soma tudo que
+ * não é pagamento, sem olhar `ok`). Quando existe uma confirmada idêntica
+ * (mesma data, descrição e valor), a pendente é essa sobra e sai.
+ *
+ * Compra repetida de verdade não é afetada: seis "Metro Rj" de R$ 7,90 no
+ * mesmo dia vêm todas com o MESMO status, então nenhuma é descartada. Por
+ * isso o desconto é contado — para N pendentes e P confirmadas da mesma
+ * chave, só P pendentes saem, nunca mais do que isso.
+ *
+ * Se errar (duas compras iguais no mesmo dia, uma já confirmada e outra ainda
+ * pendente), o erro se desfaz sozinho no sync seguinte, quando a pendente
+ * confirmar. A contagem dobrada, não: ficaria para sempre.
+ */
+function dedupPendentes(list){
+  const chave=t=>t.data+"|"+t.desc+"|"+t.valor,confirmadas={};
+  for(const t of list)if(t.ok)confirmadas[chave(t)]=(confirmadas[chave(t)]||0)+1;
+  return list.filter(t=>{
+    if(t.ok)return true;
+    const k=chave(t);
+    if(confirmadas[k]>0){confirmadas[k]--;return false}
+    return true;
+  });
+}
 /* O PostgREST do Supabase devolve no máximo 1000 linhas por requisição, e o
    histórico completo do Nubank passa disso — sem paginar, o que sobra era
    cortado em silêncio e sumia da fatura. `raw` fica de fora (é o payload
@@ -234,7 +260,7 @@ function fetchPluggySyncAt(uid){
 }
 function attachPluggy(uid){
   const load=()=>Promise.all([fetchPluggyRows(uid),fetchPluggySyncAt(uid)]).then(([data])=>{
-    pluggyTx=data.map(mapPluggyRow);
+    pluggyTx=dedupPendentes(data.map(mapPluggyRow));
     if(pluggyTx.length&&!S.accounts.some(a=>a.id==="nubank")){
       S.accounts.push({id:"nubank",nome:"Nubank",saldoInicial:0,cor:"#820AD1"});
       persist();
