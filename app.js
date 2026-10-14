@@ -384,10 +384,20 @@ function pluggyBillEntries(){
     const group=byVenc[venc];
     /* Soma com sinal: compra aumenta a fatura, estorno/crédito abate. */
     const total=-group.reduce((s,t)=>s+signed(t),0);
-    return {id:"fat-"+venc,data:venc,desc:"Fatura Nubank",valor:Math.abs(total),
-     tipo:total<0?"r":"d",cat:"car",conta,ok:venc<=T,
+    /*
+     * Fatura nunca é receita: crédito maior que os débitos do ciclo significa
+     * que não há nada a pagar, não que entrou dinheiro na conta corrente. Um
+     * parcelamento deixa isso evidente — o "Crédito de parcelamento" cai
+     * inteiro no ciclo atual, mas quita também dívida que estava em outros
+     * ciclos (inclusive de acordo anterior, que some dos dados). O excedente
+     * não é saldo a favor: já está contado nas parcelas futuras, então virar
+     * receita aqui jogaria uma entrada fantasma na previsão de saldo.
+     */
+    if(total<=0)return null;
+    return {id:"fat-"+venc,data:venc,desc:"Fatura Nubank",valor:total,
+     tipo:"d",cat:"car",conta,ok:venc<=T,
      imported:true,isFatura:true,count:group.length};
-  }).filter(e=>e.valor>0);
+  }).filter(Boolean);
 }
 /*
  * A Pluggy devolve o histórico inteiro do cartão, inclusive faturas vencidas
