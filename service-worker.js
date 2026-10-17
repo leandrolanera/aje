@@ -1,8 +1,9 @@
-const CACHE = "aje-v1";
+const CACHE = "aje-v2";
 const ASSETS = [
   "/",
   "/index.html",
   "/styles.css",
+  "/core.js",
   "/app.js",
   "/config.js",
   "/manifest.webmanifest",

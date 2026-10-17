@@ -2,8 +2,14 @@
   "name": "aje-functions",
   "private": true,
   "description": "Dependências só das funções de servidor (api/ no Vercel; netlify/functions/ no fallback) — o site em si continua estático, sem build.",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2"
+  },
+  "scripts": {
+    "test": "node --test",
+    "test:cov": "node --test --experimental-test-coverage"
   }
 }

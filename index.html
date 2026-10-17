@@ -35,6 +35,8 @@
 </div>
 <div id="modal" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
+<!-- core.js antes do app.js: o app depende do Core já no carregamento. -->
+<script src="core.js"></script>
 <script src="app.js"></script>
 <script>
 if("serviceWorker" in navigator){

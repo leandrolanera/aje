@@ -2,15 +2,8 @@
 /* ---------- utilidades ---------- */
 const $=(s,el=document)=>el.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const brl=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
 const brlC=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL",notation:"compact",maximumFractionDigits:1});
-const money=c=>brl.format(c/100);
-const pad=n=>String(n).padStart(2,"0");
-const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
-const parse=s=>{const p=s.split("-").map(Number);return new Date(p[0],p[1]-1,p[2])};
-const todayISO=()=>iso(new Date());
-const addDays=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return iso(d)};
-function addMonths(s,n,baseDay){const d=parse(s);const day=baseDay||d.getDate();const t=new Date(d.getFullYear(),d.getMonth()+n,1);const last=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();t.setDate(Math.min(day,last));return iso(t)}
+const {money,pad,iso,parse,todayISO,addDays,addMonths}=Core;
 const MES=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 const MESC=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
 const DIA=["dom","seg","ter","qua","qui","sex","sáb"];
@@ -20,6 +13,9 @@ const fmtShort=s=>{const p=s.split("-");return p[2]+"/"+p[1]};
    melhor que uma data absoluta. Passando de um dia a conta perde a graça e a
    data cheia volta a ser mais informativa. */
 function desde(iso8601){
+  /* `new Date(null)` é a época Unix, data VÁLIDA — sem esta guarda um valor
+     ausente viraria "em 31/12 às 21:00" em vez de nada. */
+  if(!iso8601)return "";
   const d=new Date(iso8601);if(isNaN(d))return "";
   const min=Math.floor((Date.now()-d.getTime())/60000);
   if(min<1)return "agora";
@@ -29,7 +25,7 @@ function desde(iso8601){
 }
 const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3);
 const clone=o=>JSON.parse(JSON.stringify(o));
-const signed=t=>t.tipo==="r"?t.valor:-t.valor;
+const signed=Core.signed;
 /*
  * Em pt-BR o ponto é separador de milhar, mas quem digita rápido também usa
  * ponto como decimal. Desambigua pela forma: um único ponto seguido de 1 ou 2
@@ -45,7 +41,7 @@ function parseMoney(s){
 /* Cor vai para dentro de um atributo `style`, então só hexadecimal passa: os
    dados podem voltar do `db` ou de um CSV com outra coisa dentro. */
 const cor=c=>/^#[0-9a-f]{3,8}$/i.test(String(c))?c:"#6b6350";
-const inMoney=c=>(c/100).toFixed(2).replace(".",",");
+const inMoney=Core.inMoney;
 
 /* ---------- dados padrão ---------- */
 /*
@@ -67,15 +63,7 @@ const CATS=[
  {id:"sal",nome:"Salário",tipo:"r",cor:"#1F6B43"},{id:"fre",nome:"Freelance",tipo:"r",cor:"#2A6F9E"},
  {id:"ren",nome:"Rendimentos",tipo:"r",cor:"#5C7A1F"},{id:"orc",nome:"Outras receitas",tipo:"r",cor:"#8A6B1F"}
 ];
-/* Categoria que a Pluggy manda pra categoria do AJÉ — tabela pequena de
-   propósito, cresce aos poucos com categorias reais vistas nos dados. O
-   fallback é "car" (Cartão de crédito), não "out": toda linha que passa por
-   aqui já é necessariamente uma transação de cartão. */
-const PLUGGY_CAT_MAP={
- "Supermercado":"mer","Restaurante":"res","Transporte":"tra",
- "Saúde":"sau","Farmácia":"sau","Lazer":"laz","Assinaturas e serviços":"ass"
-};
-const mapCategory=c=>PLUGGY_CAT_MAP[c]||"car";
+const {PLUGGY_CAT_MAP,mapCategory}=Core;
 function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function seed(){
   const T=todayISO(),now=new Date(),rnd=mulberry(7),tx=[];
@@ -200,40 +188,8 @@ function supaRef(uid){
    (clone(S) em flush() serializa tudo que estiver pendurado em S). Como é
    variável à parte, nunca passa por persist(): some ao sair e reaparece
    sozinho ao entrar, igual qualquer outra leitura remota. */
-function mapPluggyRow(row){
-  return {id:"pg-"+row.transaction_id,data:row.date,desc:row.description,
-   valor:Math.abs(row.amount_cents),tipo:row.tipo,cat:mapCategory(row.category_pluggy),
-   conta:"nubank",ok:row.status==="POSTED",imported:true,fatura:row.fatura||null,
-   /* Só o crédito: "Parcelamento de Fatura" também vem como Credit card
-      payment, mas é débito — parcela que entra na fatura e tem que somar. */
-   pagamento:row.tipo==="r"&&(row.category_pluggy==="Credit card payment"||/^pagamento recebido/i.test(row.description||""))};
-}
-/*
- * A Pluggy às vezes emite um `transaction_id` NOVO ao confirmar uma
- * transação, em vez de atualizar a que estava PENDING — o upsert guarda as
- * duas e a compra entraria dobrado na fatura (pluggyBillEntries soma tudo que
- * não é pagamento, sem olhar `ok`). Quando existe uma confirmada idêntica
- * (mesma data, descrição e valor), a pendente é essa sobra e sai.
- *
- * Compra repetida de verdade não é afetada: seis "Metro Rj" de R$ 7,90 no
- * mesmo dia vêm todas com o MESMO status, então nenhuma é descartada. Por
- * isso o desconto é contado — para N pendentes e P confirmadas da mesma
- * chave, só P pendentes saem, nunca mais do que isso.
- *
- * Se errar (duas compras iguais no mesmo dia, uma já confirmada e outra ainda
- * pendente), o erro se desfaz sozinho no sync seguinte, quando a pendente
- * confirmar. A contagem dobrada, não: ficaria para sempre.
- */
-function dedupPendentes(list){
-  const chave=t=>t.data+"|"+t.desc+"|"+t.valor,confirmadas={};
-  for(const t of list)if(t.ok)confirmadas[chave(t)]=(confirmadas[chave(t)]||0)+1;
-  return list.filter(t=>{
-    if(t.ok)return true;
-    const k=chave(t);
-    if(confirmadas[k]>0){confirmadas[k]--;return false}
-    return true;
-  });
-}
+const mapPluggyRow=Core.mapPluggyRow;
+const dedupPendentes=Core.dedupPendentes;
 /* O PostgREST do Supabase devolve no máximo 1000 linhas por requisição, e o
    histórico completo do Nubank passa disso — sem paginar, o que sobra era
    cortado em silêncio e sumia da fatura. `raw` fica de fora (é o payload
@@ -316,123 +272,20 @@ async function initStore(){
 /* ---------- cálculos ---------- */
 const catOf=id=>S.categories.find(c=>c.id===id)||{nome:"Sem categoria",cor:"#7A7469"};
 const accOf=id=>S.accounts.find(a=>a.id===id)||{nome:"—",cor:"#7A7469"};
-/* Lançamentos importados do Nubank (pluggyTx, fora de S) nunca passam por
-   persist()/app_state — vêm só da assinatura Realtime de pluggy_tx
-   (attachPluggy) e se juntam aos manuais só em memória, na hora de ler.
-
-   São três visões sobre os mesmos dados, não uma, porque "todas as compras
-   individuais" e "o que desconta do saldo" não podem ser a mesma lista —
-   contar as 1332 compras do Nubank E a fatura no dia do vencimento
-   duplicaria a despesa:
-   - everyTx(): união crua, pros lugares que precisam do fato real (guarda
-     de categoria em uso, exportação CSV) mesmo que ele não apareça isolado
-     na Visão Geral.
-   - allTx(): S.tx + a fatura agregada (pluggyBillEntries) no lugar das
-     compras individuais — é o que entra no saldo/fluxo de caixa.
-   - txs(c): allTx() filtrado, exceto pra conta "nubank", onde mostra as
-     compras individuais em vez da fatura — é o "desagrupar" ao filtrar por
-     essa conta, sem precisar de tela nova. */
-const everyTx=()=>S.tx.concat(pluggyTx);
-const FATURA_DIA=24;    // dia do vencimento da fatura
-const FATURA_FECHA=17;  // dia do fechamento (padrão Nubank: 7 dias antes do vencimento)
-/*
- * Vencimento da fatura em que uma compra feita em `dataISO` cai: até o dia do
- * fechamento entra na fatura deste mês; depois dele, só na do mês seguinte.
- * É só o fallback: a Pluggy diz o mês da fatura de cada transação
- * (creditCardMetadata.billForecastDate) e é ele que vale quando vem — o dia
- * do fechamento do Nubank varia de mês a mês, e a parcela de compra antiga
- * vem datada do fechamento, não do mês em que é cobrada.
- */
-const vencDe=t=>t.fatura?t.fatura+"-"+pad(FATURA_DIA):faturaDe(t.data);
-function faturaDe(dataISO){
-  const base=dataISO.slice(0,8)+pad(FATURA_DIA);
-  return Number(dataISO.slice(8,10))<=FATURA_FECHA?base:addMonths(base,1,FATURA_DIA);
-}
-/* A fatura é paga pela conta corrente. "cc" é o id que o app cria por padrão,
-   mas se essa conta tiver sido recriada com outro id o lançamento iria parar
-   numa conta inexistente — sumindo da previsão da conta real. */
-const contaFatura=()=>S.accounts.some(a=>a.id==="cc")?"cc"
- :(S.accounts.find(a=>a.id!=="nubank")||S.accounts[0]||{id:"cc"}).id;
-/*
- * Uma fatura por mês de vencimento, somando as compras daquele ciclo.
- *
- * O agrupamento é por DATA, não pelo `billId` da Pluggy: no tier gratuito do
- * Meu Pluggy o produto de faturas não está liberado (o endpoint /bills devolve
- * 403, ver PLUGGY.md), e na prática nenhuma transação vem com `billId`
- * preenchido. A data, essa sim, vem sempre — inclusive nas parcelas futuras,
- * que a Pluggy já devolve com a data do mês em que serão cobradas. É daí que
- * saem as faturas futuras: elas não são projeção nossa, são as parcelas já
- * contratadas caindo no ciclo delas.
- */
-/*
- * O pagamento da fatura ("Pagamento recebido") fica de fora da soma. Ele é o
- * outro lado do próprio lançamento "Fatura Nubank" na conta corrente; somá-lo
- * também contaria o dinheiro duas vezes. E como é pago no vencimento (dia 24),
- * depois do fechamento, ele caía no ciclo SEGUINTE e abatia a fatura do mês
- * seguinte inteira. Estorno, IOF devolvido e créditos de atraso continuam na
- * soma: esses sim fazem parte da fatura.
- */
-function pluggyBillEntries(){
-  const byVenc={};
-  for(const t of pluggyTx){
-    if(t.pagamento)continue;
-    const venc=vencDe(t);
-    (byVenc[venc]=byVenc[venc]||[]).push(t);
-  }
-  const T=todayISO(),conta=contaFatura();
-  return Object.keys(byVenc).map(venc=>{
-    const group=byVenc[venc];
-    /* Soma com sinal: compra aumenta a fatura, estorno/crédito abate. */
-    const total=-group.reduce((s,t)=>s+signed(t),0);
-    /*
-     * Fatura nunca é receita: crédito maior que os débitos do ciclo significa
-     * que não há nada a pagar, não que entrou dinheiro na conta corrente. Um
-     * parcelamento deixa isso evidente — o "Crédito de parcelamento" cai
-     * inteiro no ciclo atual, mas quita também dívida que estava em outros
-     * ciclos (inclusive de acordo anterior, que some dos dados). O excedente
-     * não é saldo a favor: já está contado nas parcelas futuras, então virar
-     * receita aqui jogaria uma entrada fantasma na previsão de saldo.
-     */
-    if(total<=0)return null;
-    return {id:"fat-"+venc,data:venc,desc:"Fatura Nubank",valor:total,
-     tipo:"d",cat:"car",conta,ok:venc<=T,
-     imported:true,isFatura:true,count:group.length};
-  }).filter(Boolean);
-}
-/*
- * A Pluggy devolve o histórico inteiro do cartão, inclusive faturas vencidas
- * muito antes de o app começar a ser usado. Essas já saíram da conta corrente
- * antes do saldo inicial — somá-las de novo jogava dezenas de milhares de
- * reais de despesa no saldo. Só entram no saldo/fluxo as faturas que vencem a
- * partir do primeiro lançamento manual (o começo do controle no app); as
- * anteriores continuam visíveis filtrando pela conta Nubank.
- */
-const inicioControle=()=>S.tx.reduce((m,t)=>!m||t.data<m?t.data:m,"");
-const allTx=()=>{
-  const ini=inicioControle();
-  return S.tx.concat(pluggyBillEntries().filter(f=>!ini||f.data>=ini));
-};
-const txs=c=>{
-  if(c==="nubank")return S.tx.filter(t=>t.conta==="nubank").concat(pluggyTx);
-  return allTx().filter(t=>c==="all"||t.conta===c);
-};
-const opening=c=>S.accounts.filter(a=>c==="all"||a.id===c).reduce((s,a)=>s+a.saldoInicial,0);
-function balanceBefore(d,c,onlyOk){let b=opening(c);for(const t of txs(c))if(t.data<d&&(!onlyOk||t.ok))b+=signed(t);return b}
-const realNow=c=>{let b=opening(c);for(const t of txs(c))if(t.ok)b+=signed(t);return b};
-function monthSeries(y,m,c){
-  const ym=y+"-"+pad(m+1),start=ym+"-01",n=new Date(y,m+1,0).getDate();
-  const list=txs(c).filter(t=>t.data.slice(0,7)===ym),by={};
-  list.forEach(t=>(by[t.data]=by[t.data]||[]).push(t));
-  const openP=balanceBefore(start,c,false);let proj=openP,real=balanceBefore(start,c,true);
-  const days=[];
-  for(let d=1;d<=n;d++){
-    const key=ym+"-"+pad(d);let ein=0,eout=0,rd=0;
-    for(const t of by[key]||[]){if(t.tipo==="r")ein+=t.valor;else eout+=t.valor;if(t.ok)rd+=signed(t)}
-    proj+=ein-eout;real+=rd;
-    days.push({key,d,ein,eout,proj,real,n:(by[key]||[]).length});
-  }
-  return {ym,start,n,days,list,open:openP};
-}
+/* Leitura e fatura vivem em core.js — a mesma lógica roda no navegador e no
+   servidor (api/resumo.js), e duas cópias andariam separadas. Aqui só as
+   amarrações que injetam o estado local (S, pluggyTx). */
+const everyTx=()=>Core.everyTx(S,pluggyTx);
+const inicioControle=()=>Core.inicioControle(S);
+const allTx=()=>Core.allTx(S,pluggyTx);
+const txs=c=>Core.txs(S,pluggyTx,c);
+const opening=c=>Core.opening(S,c);
+const balanceBefore=(d,c,onlyOk)=>Core.balanceBefore(S,pluggyTx,d,c,onlyOk);
+const realNow=c=>Core.realNow(S,pluggyTx,c);
+const monthSeries=(y,m,c)=>Core.monthSeries(S,pluggyTx,y,m,c);
+const pluggyBillEntries=()=>Core.pluggyBillEntries(S,pluggyTx);
+const contaFatura=()=>Core.contaFatura(S);
+const {FATURA_DIA,FATURA_FECHA,faturaDe,vencDe}=Core;
 const curSeries=()=>monthSeries(cur.y,cur.m,filtro.conta);
 
 /* ---------- ícones e estrutura ---------- */
@@ -599,7 +452,7 @@ function viewContas(){
   const cards=S.accounts.map(a=>{
     const used=txs(a.id).length>0;
     let proj=a.saldoInicial;txs(a.id).forEach(t=>{if(t.data<=endM)proj+=signed(t)});
-    return '<div class="acc"><div class="editrow"><input type="color" data-acc="'+a.id+'" data-k="cor" value="'+a.cor+'" aria-label="Cor"><input class="field" data-acc="'+a.id+'" data-k="nome" value="'+esc(a.nome)+'" aria-label="Nome da conta"><button class="btn sm danger" data-act="delacc" data-id="'+a.id+'"'+(used||S.accounts.length<2?" disabled":"")+' title="'+(used?"Conta com lançamentos não pode ser excluída":S.accounts.length<2?"É preciso ter ao menos uma conta":"Excluir conta")+'">Excluir</button></div>'
+    return '<div class="acc"><div class="editrow"><input type="color" data-acc="'+a.id+'" data-k="cor" value="'+cor(a.cor)+'" aria-label="Cor"><input class="field" data-acc="'+a.id+'" data-k="nome" value="'+esc(a.nome)+'" aria-label="Nome da conta"><button class="btn sm danger" data-act="delacc" data-id="'+a.id+'"'+(used||S.accounts.length<2?" disabled":"")+' title="'+(used?"Conta com lançamentos não pode ser excluída":S.accounts.length<2?"É preciso ter ao menos uma conta":"Excluir conta")+'">Excluir</button></div>'
      +'<div><span class="lbl">Saldo atual</span><div class="big num '+(realNow(a.id)<0?"neg":"")+'">'+money(realNow(a.id))+'</div><div class="mini">Previsto em '+fmtShort(endM)+': <b class="num">'+money(proj)+'</b></div>'
      /* Só a conta importada tem o que dizer aqui: as outras são alimentadas à
         mão, então "última sincronização" não significa nada pra elas. */
@@ -619,7 +472,7 @@ function viewCats(){
     const list=S.categories.filter(c=>c.tipo===tipo);
     return '<section class="panel"><h2>'+titulo+'</h2><p class="sub">'+list.length+' categorias</p><div class="catlist">'+list.map(c=>{
       const used=everyTx().some(t=>t.cat===c.id);
-      return '<div class="editrow"><input type="color" data-cat="'+c.id+'" data-k="cor" value="'+c.cor+'" aria-label="Cor"><input class="field" data-cat="'+c.id+'" data-k="nome" value="'+esc(c.nome)+'" aria-label="Nome da categoria"><button class="btn sm danger" data-act="delcat" data-id="'+c.id+'"'+(used?" disabled":"")+' title="'+(used?"Categoria em uso":"Excluir categoria")+'">Excluir</button></div>';
+      return '<div class="editrow"><input type="color" data-cat="'+c.id+'" data-k="cor" value="'+cor(c.cor)+'" aria-label="Cor"><input class="field" data-cat="'+c.id+'" data-k="nome" value="'+esc(c.nome)+'" aria-label="Nome da categoria"><button class="btn sm danger" data-act="delcat" data-id="'+c.id+'"'+(used?" disabled":"")+' title="'+(used?"Categoria em uso":"Excluir categoria")+'">Excluir</button></div>';
     }).join("")+'</div><div class="actions"><button class="btn" data-act="addcat" data-tipo="'+tipo+'">Nova categoria</button></div></section>';
   };
   return '<div class="two">'+block("d","Despesas")+block("r","Receitas")+'</div>';
