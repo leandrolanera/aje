@@ -84,6 +84,7 @@ PLUGGY_CLIENT_ID
 PLUGGY_CLIENT_SECRET
 PLUGGY_ITEM_ID
 SUPABASE_URL
+SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
 AJE_USER_ID
 PLUGGY_SYNC_SECRET
@@ -91,8 +92,10 @@ PLUGGY_WEBHOOK_SECRET
 PLUGGY_DATE_FROM        (opcional)
 ```
 
-`SUPABASE_URL` é a mesma URL do projeto que já está em `config.js`, só que
-como variável de ambiente (não no arquivo). `SUPABASE_SERVICE_ROLE_KEY` está
+`SUPABASE_URL` e `SUPABASE_ANON_KEY` são os mesmos que já estão em
+`config.js`, só que como variável de ambiente. A `anon` é usada para validar
+a sessão de quem clica em "Sincronizar agora" — é uma verificação normal de
+login, por isso não serve a `service_role`, que ignoraria tudo. `SUPABASE_SERVICE_ROLE_KEY` está
 em **Project Settings → API** no Supabase, ao lado da `anon key` — **essa
 chave nunca pode ir pro `config.js` nem pro repositório**, ela ignora toda a
 Row Level Security. `AJE_USER_ID` é o seu próprio `auth.users.id` (visível
@@ -122,6 +125,13 @@ curl "https://aje-woad.vercel.app/api/pluggy-sync?key=SEU_PLUGGY_SYNC_SECRET"
 ```
 
 Seguro de rodar de novo quando quiser forçar um resync — é idempotente.
+
+Depois do backfill, o mesmo sync fica a um toque na tela **Contas**, no botão
+"Sincronizar agora" do cartão do Nubank. Ele não usa o `PLUGGY_SYNC_SECRET`:
+`config.js` é servido publicamente, e o segredo ali deixaria qualquer um
+disparar syncs. O botão se autentica com a sua sessão do Supabase, que o
+endpoint confere contra o `AJE_USER_ID`. A chave em query continua valendo
+para `curl` e scripts.
 
 ## 6. Cadastrar o webhook (via API, não tem formulário no painel)
 

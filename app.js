@@ -224,10 +224,15 @@ function attachPluggy(uid){
     render();
   },()=>{});
   load();
+  /* Um sync reescreve TODAS as linhas (o updated_at muda em cada uma), então
+     o Realtime dispara um evento por transação — mais de mil de uma vez. Sem
+     agrupar, seriam mil releituras da tabela inteira. */
+  let aguardando=0;
+  const loadAgrupado=()=>{clearTimeout(aguardando);aguardando=setTimeout(load,600)};
   const channel=supa.channel("pluggy_tx_"+uid).on("postgres_changes",
-   {event:"*",schema:"public",table:"pluggy_tx",filter:"user_id=eq."+uid},load
+   {event:"*",schema:"public",table:"pluggy_tx",filter:"user_id=eq."+uid},loadAgrupado
   ).subscribe();
-  return ()=>supa.removeChannel(channel);
+  return ()=>{clearTimeout(aguardando);supa.removeChannel(channel)};
 }
 /* Resolve com a sessão inicial (ou null) uma única vez; depois disso, entrar
    ou sair da conta em qualquer aba reconecta ou solta o `ref` sozinho. */
@@ -456,7 +461,11 @@ function viewContas(){
      +'<div><span class="lbl">Saldo atual</span><div class="big num '+(realNow(a.id)<0?"neg":"")+'">'+money(realNow(a.id))+'</div><div class="mini">Previsto em '+fmtShort(endM)+': <b class="num">'+money(proj)+'</b></div>'
      /* Só a conta importada tem o que dizer aqui: as outras são alimentadas à
         mão, então "última sincronização" não significa nada pra elas. */
-     +(a.id==="nubank"&&pluggySyncAt?'<div class="mini">Sincronizado com o banco '+esc(desde(pluggySyncAt))+'</div>':"")+'</div>'
+     +(a.id==="nubank"&&pluggySyncAt?'<div class="mini">Sincronizado com o banco '+esc(desde(pluggySyncAt))+'</div>':"")
+     /* O webhook pode falhar sem avisar — o botão é a saída manual, e fica
+        junto do carimbo de quando foi a última vez, que é onde se percebe
+        que algo parou. Só faz sentido logado: é a sessão que autentica. */
+     +(a.id==="nubank"&&authUser?'<div class="actions" style="margin-top:8px"><button class="btn sm" data-act="sincronizar">Sincronizar agora</button></div>':"")+'</div>'
      /* O rótulo é chapéu (caixa alta, tracking aberto) e chapéu de seis palavras
         não se lê — a explicação desceu para a linha de apoio, em caixa normal. */
      +'<div><label class="lbl" for="si-'+a.id+'">Saldo inicial</label><input class="field num" id="si-'+a.id+'" data-acc="'+a.id+'" data-k="saldo" inputmode="decimal" value="'+inMoney(a.saldoInicial)+'" style="width:100%"><div class="mini">Quanto havia na conta antes do primeiro lançamento</div></div></div>';
@@ -638,6 +647,33 @@ const H={
   addcat(el){S.categories.push({id:"c"+uid(),nome:"Nova categoria",tipo:el.dataset.tipo,cor:"#4A5560"});persist();render()},
   delcat(el){S.categories=S.categories.filter(c=>c.id!==el.dataset.id);persist();render()},
   signout(){supa.auth.signOut()},
+  /*
+   * Busca na Pluggy o que houver de novo e regrava. O segredo do endpoint
+   * NÃO pode vir para cá — `config.js` é público —, então a autenticação é a
+   * própria sessão do Supabase, que o servidor confere.
+   *
+   * Não recarrega nada na mão: o sync altera as linhas e a assinatura
+   * Realtime (attachPluggy) redesenha sozinha.
+   */
+  async sincronizar(el){
+    if(!supa||!authUser)return toast("Entre na sua conta para sincronizar");
+    const rotulo=el.textContent;
+    el.disabled=true;el.textContent="Sincronizando…";
+    try{
+      const {data}=await supa.auth.getSession();
+      const token=data&&data.session&&data.session.access_token;
+      if(!token)throw new Error("sessão expirada");
+      const r=await fetch("/api/pluggy-sync",{headers:{Authorization:"Bearer "+token}});
+      if(!r.ok)throw new Error(await r.text());
+      const j=await r.json();
+      toast(j.transactions+" transações sincronizadas");
+    }catch(e){
+      console.error(e);
+      toast("Não foi possível sincronizar");
+    }finally{
+      el.disabled=false;el.textContent=rotulo;
+    }
+  },
   googleSignin(){supa.auth.signInWithOAuth({provider:"google",options:{redirectTo:location.origin+location.pathname}})},
   googleLink(){supa.auth.linkIdentity({provider:"google",options:{redirectTo:location.origin+location.pathname}})},
   async export(){
