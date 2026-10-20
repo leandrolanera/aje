@@ -119,7 +119,7 @@ Valor em dinheiro é exceção ao `uppercase`: não há o que caixa-altar em
 
 | | Bruto | Gzip |
 |---|---:|---:|
-| CSS | 28 KB | 8,8 KB |
+| CSS | 36 KB | 11,9 KB |
 | JS | 39 KB | 14 KB |
 | HTML | 1,3 KB | 0,7 KB |
 | Fontes (4 subsets no deploy) | 71 KB | — |
@@ -148,10 +148,37 @@ Zero requisição a terceiro. Zero imagem: ícones são SVG inline e a textura �
   14 categorias a ~6 grupos, porque 14 cores não se distinguem.
 - **Tela de fechamento do mês** (§2.5). É a tela que justifica ter usado o app o
   mês inteiro, e merece o maior investimento visual do projeto.
-- **O FAB do celular cobre a coluna de valores** enquanto se rola a lista. É
-  anterior a esta revisão, mas num app cujo ponto é a coluna da direita, incomoda
-  mais do que o normal. Resolver provavelmente significa mover o "+" para dentro
-  da barra inferior.
+- ~~**O FAB do celular cobre a coluna de valores**~~ — resolvido: o "+" passou a
+  viver dentro da barra inferior, como item irmão da navegação, e não flutua
+  mais sobre a lista.
+- **Os três cartões de KPI da Visão Geral são o mesmo molde repetido** — rótulo,
+  número grande, nota, barra. E o terceiro ("sobra prevista") não é um par dos
+  outros dois: é a subtração deles. Três cartões de peso igual onde um é
+  conclusão dos outros é hierarquia errada, não só ritmo. A revisão de layout
+  apertou o vão entre eles para que se leiam como um grupo só, mas a estrutura
+  continua a de um molde de framework.
+
+## Espaçamento
+
+A escala é base 4, em `--e1`…`--e7`, e existe porque o ritmo vertical tinha
+virado ruído: 23 valores distintos no CSS, com as seções separadas por 14–22px
+— a mesma distância que havia *dentro* de cada grupo. Sem contraste entre
+apertado e generoso, tudo pesa igual e o olho não acha onde um assunto termina.
+
+A regra: `--e2`/`--e3` unem, `--e7` separa. Hoje o grupo de KPIs tem 8px entre
+os cartões e 32px até a próxima seção.
+
+Os valores internos de componente (preenchimento de `.row`, `.kpi`, `.acc`)
+ainda são literais — foram afinados à mão e não foram tocados. Quem mexer neles
+deve migrá-los para a escala.
+
+## Adaptação: o que muda por largura
+
+| Faixa | O que acontece |
+|---|---:|
+| ≤ 560px | O razão do Fluxo perde "entradas" e "saídas". Com as cinco colunas ele media 681px numa janela de 343: os dois saldos ficavam inteiramente fora da tela, e "Dia" era a coluna mais larga. O total do mês já está nos KPIs e o valor de cada lançamento está no Extrato; o saldo por dia não está em lugar nenhum. |
+| ≤ 860px | Barra de navegação vai para baixo, FAB entra nela, alvos de toque sobem para 44px. |
+| ≤ 1030px | O placar vira grade: saldo na linha inteira, as duas projeções lado a lado embaixo. Em flex elas caíam como 2 + 1, com o "menor saldo" órfão. O limite é medido, não escolhido: as três cifras pedem 731px e o `.placar` só alcança isso acima de ~1030. |
 
 ## Checklist (§13)
 

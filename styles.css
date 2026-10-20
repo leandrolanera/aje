@@ -80,6 +80,19 @@
   /* Recuo lateral único da moldura. É variável porque já divergiu em projeto
      irmão, e alguns pixels de diferença parecem erro de renderização. */
   --margem:clamp(16px,3vw,32px);
+
+  /*
+   * Escala de espaçamento, base 4. Existe porque o ritmo vertical tinha
+   * virado ruído: 23 valores distintos no arquivo, e as seções separadas
+   * por 14–22px — a mesma distância que havia DENTRO de cada grupo. Sem
+   * contraste entre apertado e generoso, tudo pesa igual e o olho não
+   * encontra onde um assunto termina.
+   *
+   * A regra é essa: --e2/--e3 unem (itens de um mesmo grupo), --e7 separa
+   * (uma seção da seguinte). A base 4 dá os degraus do meio que uma escala
+   * só de 8 não tem.
+   */
+  --e1:4px; --e2:8px; --e3:12px; --e4:16px; --e5:20px; --e6:24px; --e7:32px;
 }
 
 *{box-sizing:border-box}
@@ -156,10 +169,17 @@ h1,h2,h3,.placar-v,.kpi .v,.acc .big,.big-in{
 .sync[data-s="err"] i{background:var(--sai)}
 .sync[data-s="busy"] i{background:var(--acento)}
 
-.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;margin-bottom:20px}
+/* Vão menor que o das seções de propósito: os controles filtram o conteúdo
+   logo abaixo, então pertencem a ele. */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e3) var(--e4);margin-bottom:var(--e5)}
 .top h1{font-size:clamp(1.6rem,4vw,2.1rem);line-height:1;letter-spacing:-.01em;text-wrap:balance}
 .top .grow{flex:1 1 20px}
-.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+/* `min-width:0` porque, como item flex, .controls não encolheria abaixo da
+   própria largura mínima — e essa largura vem do select de contas. Sem isto,
+   o `max-width:100%` do campo não resolve nada: ele mede contra um pai que
+   já saiu da moldura. Aparece a 125% de texto, e também com nome de conta
+   comprido. */
+.controls{display:flex;flex-wrap:wrap;gap:var(--e2);align-items:center;min-width:0;max-width:100%}
 /* Seletor de mês: fica na moldura escura, então é contorno, não caixa clara. */
 .monthsw{display:flex;align-items:center;background:var(--elevado);border-radius:var(--raio);overflow:hidden}
 .monthsw button{background:none;border:0;padding:8px 11px;color:var(--apagado-escuro);display:grid;place-items:center}
@@ -189,6 +209,11 @@ h1,h2,h3,.placar-v,.kpi .v,.acc .big,.big-in{
 select.field,input.field{
   background:var(--elevado);border:1px solid transparent;border-radius:var(--raio);
   padding:8px 11px;min-width:0;color:var(--tinta-escuro);font-size:.9rem;
+  /* Teto obrigatório: a largura intrínseca de um select é a da opção mais
+     longa, então um nome de conta comprido — ou só o texto a 125% — empurrava
+     o campo para fora da moldura. `min-width:0` sozinho não segura quando o
+     campo fica sozinho na linha que o flex-wrap criou. */
+  max-width:100%;
 }
 select.field:focus,input.field:focus{border-color:var(--acento);outline:none}
 
@@ -209,7 +234,7 @@ select.field:focus,input.field:focus{border-color:var(--acento);outline:none}
    escura, em âmbar e em corpo muito maior do que a hierarquia "correta" pediria
    — é placar de estádio, não linha de tabela. Deliberadamente NÃO é ficha
    creme: não é um fato do mês, é o número que tudo o mais explica. */
-.placar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 40px;margin:0 0 22px}
+.placar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--e3) 40px;margin:0 0 var(--e7)}
 .placar-b{display:flex;flex-direction:column;min-width:0}
 .placar-v{
   font-size:clamp(2.6rem,9vw,4.25rem);
@@ -242,7 +267,9 @@ select.field:focus,input.field:focus{border-color:var(--acento);outline:none}
 /* Dentro da ficha toda tinta secundária é escura — o âmbar aqui daria 2,1. */
 .panel .lbl,.kpi .l,.acc .lbl{color:var(--apagado-card)}
 
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:16px}
+/* Gap apertado: os três são um grupo só (o mês em números). O respiro grande
+   fica depois deles, separando do gráfico. */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--e2);margin-bottom:var(--e7)}
 .kpi{padding:14px 16px;display:flex;flex-direction:column;gap:3px;min-width:0}
 .kpi .v{font-size:1.6rem;line-height:1.1;letter-spacing:-.01em;overflow-wrap:anywhere}
 .kpi .s{font-size:.8rem;color:var(--apagado-card)}
@@ -300,7 +327,10 @@ select.field:focus,input.field:focus{border-color:var(--acento);outline:none}
 /* Cor de categoria: preenchimento de forma, nunca texto. É o filete e o ponto. */
 .dot{width:10px;height:10px;flex:none;display:inline-block;border-radius:1px}
 
-.seg{display:inline-flex;background:var(--elevado);border-radius:var(--raio);padding:3px;gap:2px}
+/* `flex-wrap` como válvula: a 150% de texto os três segmentos somam mais que a
+   moldura e saíam 39px pela direita. Quebrar em duas linhas desarruma o
+   controle, mas um filtro fora da tela não dá para tocar. */
+.seg{display:inline-flex;flex-wrap:wrap;max-width:100%;background:var(--elevado);border-radius:var(--raio);padding:3px;gap:2px}
 .seg button{
   border:0;background:none;border-radius:2px;padding:6px 12px;
   font-size:.78rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
@@ -374,7 +404,7 @@ select.field:focus,input.field:focus{border-color:var(--acento);outline:none}
 .empty p{margin:0 0 14px}
 
 /* ---------- tabela: a página de razão ---------- */
-.tablewrap{overflow-x:auto;margin-bottom:16px}
+.tablewrap{overflow-x:auto;margin-bottom:var(--e7)}
 table{border-collapse:collapse;width:100%;min-width:560px}
 th,td{padding:9px 14px;text-align:right;border-top:1px solid var(--linha-card);white-space:nowrap}
 th:first-child,td:first-child{text-align:left}
@@ -393,7 +423,41 @@ td.fut{color:var(--apagado-card)}
 td.pos{color:var(--entra-tinta)}
 td.neg{color:var(--sai-tinta)}
 
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:16px}
+/*
+ * O razão perde colunas por prioridade, em vez de rolar de lado.
+ *
+ * Com as cinco colunas, a tabela mede 681px dentro de uma janela de 343px:
+ * "saldo previsto" começa em x=407 e "saldo realizado" em x=547, ou seja,
+ * os dois ficam inteiramente fora da tela num iPhone 13 mini. O número que
+ * a IDENTIDADE-VISUAL.md §2.2 chama de "o número que importa" exigia rolar
+ * de lado para aparecer — enquanto "Dia", com 163px, era a coluna mais larga
+ * de todas.
+ *
+ * Entradas e saídas saem porque são o detalhe derivável: o total do mês já
+ * está nos dois KPIs da Visão Geral, e o valor de cada lançamento está no
+ * Extrato. O saldo por dia não está em nenhum outro lugar.
+ *
+ * As colunas e os filetes continuam — é o livro-caixa, só com menos colunas,
+ * não uma lista de cartões.
+ */
+@media (max-width:560px){
+  table{min-width:0}
+  th,td{padding:9px 10px}
+  th:nth-child(2),th:nth-child(3),
+  td:nth-child(2),td:nth-child(3){display:none}
+  /* Quem mandava na largura das colunas era o cabeçalho, não o dinheiro:
+     "SALDO REALIZADO" em caixa alta com .14em de entreletra media 142px,
+     contra ~85px do valor abaixo dele. Deixando quebrar em duas linhas, a
+     coluna volta a ser do tamanho do número. Os valores seguem em nowrap —
+     "R$ 15.231,06" partido ao meio seria pior que rolar de lado. */
+  thead th{white-space:normal;letter-spacing:.08em}
+  /* A primeira coluna também quebra: quem a esticava para 155px não eram os
+     dias ("ter, 20 out"), eram os rótulos longos do corpo — "Saldo inicial
+     do mês" e "Total do mês" — presos em nowrap. */
+  th:first-child,td:first-child{white-space:normal}
+}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--e2);margin-bottom:var(--e7)}
 .acc{padding:16px;display:flex;flex-direction:column;gap:12px}
 .acc .big{font-size:1.75rem;line-height:1;letter-spacing:-.01em}
 .acc .mini{font-size:.8rem;color:var(--apagado-card);margin-top:3px}
@@ -489,9 +553,15 @@ td.neg{color:var(--sai-tinta)}
   }
   .brand,.sync{display:none}
   .nav{flex-direction:row;flex:1 1 auto;min-width:0;justify-content:space-between;gap:0}
+  /* .58rem dava 9,28px renderizados — menor que o piso de legibilidade de
+     qualquer plataforma, e são os rótulos da navegação principal.
+     `flex:1 1 auto` em vez de `1 1 0` porque os cinco rótulos não têm a mesma
+     largura: com abas de largura igual, "Categorias" a .7rem mede 71px num
+     item de 63 e transborda. Medidos pelo conteúdo, os cinco somam ~222px
+     dentro dos 313px da barra, e a sobra se distribui. */
   .nav button{
-    flex-direction:column;gap:3px;padding:6px 1px;flex:1 1 0;min-width:0;
-    align-items:center;text-align:center;font-size:.58rem;letter-spacing:.02em;
+    flex-direction:column;gap:3px;padding:6px 2px;flex:1 1 auto;min-width:0;
+    align-items:center;text-align:center;font-size:.7rem;letter-spacing:0;
   }
   .nav button[aria-current="page"]{box-shadow:inset 0 3px 0 var(--acento);background:none}
   .nav .lg{display:none}
@@ -512,12 +582,63 @@ td.neg{color:var(--sai-tinta)}
   .row{gap:10px;padding:10px 12px 10px 9px}
   .diahead{padding:10px 12px 8px}
   #toast{bottom:calc(86px + env(safe-area-inset-bottom,0px))}
+
+  /*
+   * Área de toque de 44px.
+   *
+   * No dedo, só o FAB chegava lá: o .chk media 24×24 e é o gesto mais repetido
+   * do app (vinte deles numa tela de Extrato), as setas de mês 38×32, os campos
+   * 38 de altura, os botões pequenos 30.
+   *
+   * Onde o controle já é uma caixa — campo, select, botão de barra — ele
+   * simplesmente cresce. Onde a marca desenhada tem de continuar pequena (o
+   * círculo da linha, o "Excluir" ao lado de um nome), um ::after estende só a
+   * área sensível.
+   *
+   * Cuidado nos números do ::after: com box-sizing border-box, o bloco de
+   * contenção é a caixa de preenchimento, já descontada a borda. O .chk tem
+   * 24px visíveis mas 20px de caixa de preenchimento, então são -12px de cada
+   * lado para fechar 44 — -10px davam 40 e pareciam certos.
+   */
+  .chk{position:relative}
+  .chk::after{content:"";position:absolute;inset:-12px}
+  .btn.sm{position:relative}
+  .btn.sm::after{content:"";position:absolute;inset:-8px -2px}
+  .btn,select.field,input.field,.seg button{min-height:44px}
+  .monthsw button{padding:14px}
+  /* A amostra de cor cresce de verdade: o quadrado é a própria marca. */
+  .acc input[type="color"],.catlist input[type="color"]{width:44px;height:44px}
 }
 @media (max-width:420px){
   .fgrid{grid-template-columns:1fr}
   /* O ponto de categoria sai: o filete lateral da linha já carrega a cor. */
   .row .dot{display:none}
-  .placar{gap:10px 24px}
+}
+/*
+ * O placar em grade quando as três cifras não cabem numa linha.
+ *
+ * Em flex-wrap elas caíam como 2 + 1 — "menor saldo" sozinho numa linha, com
+ * 191px de vazio à direita a 375px —, e aí as três paravam de se ler como um
+ * grupo. Em grade o saldo ocupa a linha inteira, porque é ele que lidera, e as
+ * duas projeções ficam lado a lado embaixo: duas iguais sob uma maior.
+ *
+ * O limite é 1030px, e ele é medido, não escolhido: somadas, as três cifras
+ * pedem 731px, e o `.placar` só alcança isso quando o viewport passa de ~1030
+ * (no desktop a barra lateral come ~295px). Abaixo disso o flex quebra sempre
+ * — inclusive a 768px e a 900px, que pareciam largos o bastante. Acima, o flex
+ * põe as três lado a lado, que é o "ao lado dele" da IDENTIDADE-VISUAL.md §2.2.
+ *
+ * As colunas são `auto`, não `1fr`: com 1fr, a 768px as duas projeções ficavam
+ * a 361px uma da outra, com um vazio no meio. Em `auto` elas andam juntas. E o
+ * vão entre colunas acompanha a largura, senão a 375px os 40px do desktop
+ * fariam o par transbordar (157 + 40 + 157 = 354 > 343).
+ */
+@media (max-width:1030px){
+  .placar{
+    display:grid;grid-template-columns:auto auto;justify-content:start;
+    gap:var(--e1) clamp(var(--e4),4vw,40px);align-items:end;
+  }
+  .placar-b:first-child{grid-column:1/-1}
 }
 /* Vale para CSS e para JS. Não há animação em JS hoje; se houver, ela precisa
    consultar matchMedia, porque esta regra não a alcança (base §12.5). */
