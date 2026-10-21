@@ -546,22 +546,35 @@ let rz=0;window.addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()
 function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),2400)}
 function catOptions(tipo,sel){return S.categories.filter(c=>c.tipo===tipo).map(c=>'<option value="'+c.id+'"'+(c.id===sel?" selected":"")+'>'+esc(c.nome)+'</option>').join("")}
 let editing=null;
+/* A altura real da janela, pro modal (ver --vvh em styles.css). O iOS não
+   encolhe o viewport de layout quando o teclado sobe, só o visual: sem isto a
+   folha do formulário mantém a altura toda e o "Salvar" fica atrás do teclado,
+   sem nada pra rolar. Não é animação — é medida; prefers-reduced-motion não
+   se aplica. O CSS trava o valor em 100dvh, então um --vvh desatualizado não
+   tem como deixar o modal maior que a tela. */
+function medeJanela(){
+  if(!window.visualViewport)return;
+  document.documentElement.style.setProperty("--vvh",visualViewport.height+"px");
+}
 function openTx(id,preset){
+  medeJanela();
   const t=id?S.tx.find(x=>x.id===id):null;editing=t;
   const tipo=t?t.tipo:"d",data=t?t.data:(preset&&preset.data)||(cur.y+"-"+pad(cur.m+1)===todayISO().slice(0,7)?todayISO():cur.y+"-"+pad(cur.m+1)+"-01");
   const conta=t?t.conta:(filtro.conta!=="all"?filtro.conta:S.accounts[0].id);
-  const rep=t?"":'<div class="full"><label class="lbl" for="f-rep">Repetir</label><div style="display:grid;grid-template-columns:1fr 90px;gap:8px"><select class="field" id="f-rep"><option value="none">Não repetir</option><option value="m">Todo mês (fixo)</option><option value="p">Parcelado (valor total dividido)</option><option value="s">Toda semana</option><option value="a">Todo ano</option></select><input class="field num" id="f-n" type="number" min="2" max="120" value="12" aria-label="Quantidade" hidden></div></div><div class="full hint" id="f-prev" hidden></div>';
+  const rep=t?"":'<div class="full"><label class="lbl" for="f-rep">Repetir</label><div class="frep"><select class="field" id="f-rep"><option value="none">Não repetir</option><option value="m">Todo mês (fixo)</option><option value="p">Parcelado (valor total dividido)</option><option value="s">Toda semana</option><option value="a">Todo ano</option></select><input class="field num" id="f-n" type="number" min="2" max="120" value="12" aria-label="Quantidade" hidden></div></div><div class="full hint" id="f-prev" hidden></div>';
   const prox=t&&t.grupo?'<div class="full"><label class="check"><input type="checkbox" id="f-prox"> Aplicar também aos próximos lançamentos desta série</label></div>':"";
   $("#modal").innerHTML='<form class="sheet" id="txform" novalidate><h3>'+(t?"Editar lançamento":"Novo lançamento")+'</h3><div class="fgrid">'
    +'<div class="full tipo" role="radiogroup" aria-label="Tipo"><label><input type="radio" name="f-tipo" value="d"'+(tipo==="d"?" checked":"")+'><span>Despesa</span></label><label><input type="radio" name="f-tipo" value="r"'+(tipo==="r"?" checked":"")+'><span>Receita</span></label></div>'
    +'<div class="full"><label class="lbl" for="f-valor">'+'Valor (R$)</label><input class="field big-in num" id="f-valor" inputmode="decimal" placeholder="0,00" autocomplete="off" value="'+(t?inMoney(t.valor):"")+'"></div>'
    +'<div class="full"><label class="lbl" for="f-desc">Descrição</label><input class="field" id="f-desc" maxlength="80" autocomplete="off" placeholder="Ex.: Supermercado" value="'+esc(t?t.desc:"")+'"></div>'
-   +'<div><label class="lbl" for="f-data">Data</label><input class="field" id="f-data" type="date" value="'+data+'"></div>'
+   /* "Data" e "Já realizado" são vizinhos de propósito: respondem à mesma
+      pergunta, e são o par que continua lado a lado no celular (.meia). */
+   +'<div class="meia"><label class="lbl" for="f-data">Data</label><input class="field" id="f-data" type="date" value="'+data+'"></div>'
+   +'<div class="meia vbase"><label class="check"><input type="checkbox" id="f-ok"'+(t?(t.ok?" checked":""):(data<=todayISO()?" checked":""))+'> Já realizado</label></div>'
    +'<div><label class="lbl" for="f-cat">Categoria</label><select class="field" id="f-cat">'+catOptions(tipo,t?t.cat:"")+'</select></div>'
    +'<div><label class="lbl" for="f-conta">Conta</label><select class="field" id="f-conta">'+S.accounts.map(a=>'<option value="'+a.id+'"'+(a.id===conta?" selected":"")+'>'+esc(a.nome)+'</option>').join("")+'</select></div>'
-   +'<div style="display:flex;align-items:end;padding-bottom:9px"><label class="check"><input type="checkbox" id="f-ok"'+(t?(t.ok?" checked":""):(data<=todayISO()?" checked":""))+'> Já realizado</label></div>'
-   +rep+prox+'</div><div class="err" id="f-err" role="alert"></div>'
-   +'<div class="sheetfoot"><div>'+(t?'<button type="button" class="btn danger" data-act="askdel">Excluir</button>':"")+'</div><div class="r"><button type="button" class="btn" data-act="close">Cancelar</button><button type="submit" class="btn primary">Salvar</button></div></div></form>';
+   +rep+prox+'</div><div class="sheetend"><div class="err" id="f-err" role="alert"></div>'
+   +'<div class="sheetfoot"><div>'+(t?'<button type="button" class="btn danger" data-act="askdel">Excluir</button>':"")+'</div><div class="r"><button type="button" class="btn" data-act="close">Cancelar</button><button type="submit" class="btn primary">Salvar</button></div></div></div></form>';
   $("#modal").hidden=false;
   setTimeout(()=>{const f=$("#f-valor");if(f)f.focus()},30);
 }
@@ -615,7 +628,8 @@ function submitTx(e){
 function askDelete(){
   const t=editing;if(!t)return;
   const foot=$(".sheetfoot");
-  foot.innerHTML='<div class="r" style="width:100%;justify-content:flex-end;align-items:center"><span style="font-weight:600;margin-right:auto">Excluir este lançamento?</span><button type="button" class="btn" data-act="close">Cancelar</button>'
+  foot.classList.add("confirma");
+  foot.innerHTML='<span class="q">Excluir este lançamento?</span><div class="r"><button type="button" class="btn" data-act="close">Cancelar</button>'
    +(t.grupo?'<button type="button" class="btn danger" data-act="delone">Só este</button><button type="button" class="btn danger armed" data-act="delnext">Este e os próximos</button>':'<button type="button" class="btn danger armed" data-act="delone">Excluir</button>')+'</div>';
 }
 function delTx(mode){
@@ -713,6 +727,12 @@ function bind(){
     if(e.target.id==="txform")submitTx(e);
     if(e.target.id==="authform")sendMagicLink(e);
   });
+  /* `resize` do visualViewport é o evento do teclado; `window.resize` cobre o
+     giro da tela e os ambientes onde o primeiro não dispara. openTx mede de
+     novo na abertura, pra não depender de evento nenhum ter chegado. */
+  if(window.visualViewport)visualViewport.addEventListener("resize",medeJanela);
+  window.addEventListener("resize",medeJanela);
+  medeJanela();
 }
 
 (async function boot(){

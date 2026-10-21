@@ -495,9 +495,26 @@ td.neg{color:var(--sai-tinta)}
 
 /* ---------- formulário ---------- */
 .fab{display:none}
-#modal{position:fixed;inset:0;background:rgba(10,8,5,.66);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+/*
+ * A altura do modal vem do viewport *visual*, não do de layout.
+ *
+ * No iOS o teclado não encolhe o viewport de layout: ele só desloca o visual.
+ * Sem isso a folha continua com os mesmos 746px e a base em 812 — atrás do
+ * teclado. E como ela não transborda, não existe nada pra rolar: o "Salvar"
+ * fica inalcançável até você fechar o teclado. Com `--vvh` (alimentado em
+ * app.js pelo visualViewport) a folha encolhe junto, passa a transbordar, e o
+ * rolar interno volta a funcionar. `100dvh` é o fallback de quem não tem a API.
+ *
+ * O `min` é trava, não preferência: --vvh só pode *encolher* o modal. Se o
+ * valor chegar desatualizado — o evento do teclado não dispara em todo
+ * ambiente —, o pior caso é não melhorar nada, nunca um modal mais alto que a
+ * tela com o rodapé pendurado pra fora.
+ */
+#modal{position:fixed;inset:0;height:min(100dvh,var(--vvh,100dvh));background:rgba(10,8,5,.66);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
 #modal[hidden]{display:none}
-.sheet{width:min(520px,100%);max-height:calc(100% - 8px);overflow:auto;padding:20px}
+/* `overscroll-behavior`: chegando ao fim da folha o gesto para ali, em vez de
+   continuar rolando a lista de lançamentos atrás dela. */
+.sheet{width:min(520px,100%);max-height:calc(100% - 8px);overflow:auto;overscroll-behavior:contain;padding:20px}
 .sheet h3{font-size:1.3rem;margin-bottom:14px;letter-spacing:.02em}
 .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
 .fgrid .full{grid-column:1/-1}
@@ -514,6 +531,14 @@ td.neg{color:var(--sai-tinta)}
 .tipo input{position:absolute;opacity:0;pointer-events:none}
 .tipo label:has(input:checked){border-color:var(--tinta-card);background:var(--tinta-card);color:var(--creme)}
 .tipo label:has(input:focus-visible){outline:2px solid var(--tinta-card);outline-offset:2px}
+/* Célula que alinha o conteúdo pela base da coluna vizinha, e não pelo topo:
+   o "Já realizado" fica na linha do campo "Data", não na do rótulo dele. */
+.vbase{display:flex;align-items:end;padding-bottom:9px}
+/* "Repetir" e a quantidade dividem a linha. A caixa da quantidade guarda no
+   máximo três dígitos, e os 90px que ela tinha custavam o rótulo mais longo da
+   lista ao lado: "Parcelado (valor total dividido)" pede 240px e o select
+   ficava com 237, cortando a palavra que explica o modo. */
+.frep{display:grid;grid-template-columns:minmax(0,1fr) 78px;gap:8px}
 .check{display:flex;align-items:center;gap:9px;font-size:.9rem;font-weight:500}
 .check input{width:18px;height:18px;accent-color:var(--tinta-card)}
 .hint{
@@ -521,8 +546,18 @@ td.neg{color:var(--sai-tinta)}
   border-left:3px solid color-mix(in srgb,var(--tinta-card) 25%,transparent);padding:2px 0 2px 10px;
 }
 .err{color:var(--sai-tinta);font-weight:700;font-size:.82rem;min-height:18px}
+/* O erro e as ações são um bloco só porque no celular eles grudam no pé da
+   folha juntos: mostrar "Salvar" sem mostrar o motivo de ele ter recusado
+   seria pior do que não grudar nenhum dos dois. */
 .sheetfoot{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;margin-top:16px;align-items:center}
 .sheetfoot .r{display:flex;gap:8px;flex-wrap:wrap}
+/* Confirmação de exclusão: a pergunta ocupa a linha inteira e os botões ficam
+   todos na linha de baixo, lado a lado. Soltos no mesmo flex do rodapé, o
+   "Cancelar" subia pra linha da pergunta e ficava longe das opções que ele
+   cancela — três botões de uma decisão em duas linhas diferentes. */
+.sheetfoot.confirma{flex-direction:column;align-items:stretch}
+.sheetfoot.confirma .q{font-weight:600}
+.sheetfoot.confirma .r{justify-content:flex-end}
 #toast{
   position:fixed;left:50%;transform:translateX(-50%);
   bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:60;
@@ -578,7 +613,38 @@ td.neg{color:var(--sai-tinta)}
   }
   .fab svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:2.6;stroke-linecap:round}
   #modal{align-items:flex-end;padding:0}
-  .sheet{border-radius:var(--raio) var(--raio) 0 0;width:100%;box-shadow:none;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+  .sheet{border-radius:var(--raio) var(--raio) 0 0;width:100%;box-shadow:none;padding-bottom:0}
+  /*
+   * O pé da folha gruda.
+   *
+   * Com o teclado aberto sobram ~470px de altura pra um formulário de 746: o
+   * "Salvar" só aparecia depois de rolar 243px, e no caminho o erro de
+   * validação passava despercebido. Grudados, o erro e as ações estão sempre
+   * na tela, e rolar passa a servir só pra reler os campos.
+   *
+   * As margens negativas existem pro filete atravessar a folha inteira: com os
+   * 20px de preenchimento ele morreria a 20px de cada borda e pareceria um
+   * traço solto no meio do papel.
+   */
+  .sheetend{
+    position:sticky;bottom:0;z-index:1;background:var(--creme);
+    margin:0 -20px;padding:4px 20px calc(16px + env(safe-area-inset-bottom,0px));
+    box-shadow:0 -1px 0 color-mix(in srgb,var(--tinta-card) 14%,transparent);
+  }
+  /* Vazio, o aviso de erro não reserva altura: numa tela de 470px essa faixa
+     em branco custa o mesmo que uma linha de campo. Quando ele aparece, a
+     empurrada pra cima é o próprio chamado de atenção. */
+  .sheetend .err:empty{min-height:0}
+  .sheetend .sheetfoot{margin-top:10px}
+  /* 44px também dentro do formulário, que a varredura anterior não alcançou:
+     a escolha Despesa/Receita media 38 e é o primeiro toque de todo
+     lançamento; o "Já realizado" media 24 de altura, e o alvo é o rótulo
+     inteiro, não o quadradinho de 18. */
+  .tipo label{min-height:44px;display:grid;place-items:center}
+  /* Com 44px o próprio .check já tem a altura do campo ao lado: o recuo que
+     compensava os 38px do desktop passaria a desalinhar os dois. */
+  .check{min-height:44px}
+  .vbase{padding-bottom:0}
   .row{gap:10px;padding:10px 12px 10px 9px}
   .diahead{padding:10px 12px 8px}
   #toast{bottom:calc(86px + env(safe-area-inset-bottom,0px))}
@@ -610,7 +676,13 @@ td.neg{color:var(--sai-tinta)}
   .acc input[type="color"],.catlist input[type="color"]{width:44px;height:44px}
 }
 @media (max-width:420px){
-  .fgrid{grid-template-columns:1fr}
+  /* Uma coluna, com uma exceção: "Data" e "Já realizado" continuam pareados.
+     São os dois controles curtos do formulário e respondem à mesma pergunta —
+     quando, e se já aconteceu. Empilhados custavam 77px de altura num
+     formulário que já não cabe com o teclado aberto. Categoria e Conta não
+     pareiam: "Saúde e bem-estar" não cabe em 164px sem cortar. */
+  .fgrid > *{grid-column:1/-1}
+  .fgrid > .meia{grid-column:auto}
   /* O ponto de categoria sai: o filete lateral da linha já carrega a cor. */
   .row .dot{display:none}
 }

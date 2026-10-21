@@ -119,8 +119,8 @@ Valor em dinheiro é exceção ao `uppercase`: não há o que caixa-altar em
 
 | | Bruto | Gzip |
 |---|---:|---:|
-| CSS | 36 KB | 11,9 KB |
-| JS | 39 KB | 14 KB |
+| CSS | 40 KB | 13,2 KB |
+| JS (`app.js` + `core.js`) | 63 KB | 23,2 KB |
 | HTML | 1,3 KB | 0,7 KB |
 | Fontes (4 subsets no deploy) | 71 KB | — |
 | Fontes **baixadas** numa sessão pt-BR | 41 KB | — |
@@ -176,9 +176,32 @@ deve migrá-los para a escala.
 
 | Faixa | O que acontece |
 |---|---:|
+| ≤ 420px | O formulário vira uma coluna, menos "Data" e "Já realizado", que continuam pareados — são os dois controles curtos e respondem à mesma pergunta. Categoria e Conta não pareiam: "Saúde e bem-estar" não cabe em 164px. |
 | ≤ 560px | O razão do Fluxo perde "entradas" e "saídas". Com as cinco colunas ele media 681px numa janela de 343: os dois saldos ficavam inteiramente fora da tela, e "Dia" era a coluna mais larga. O total do mês já está nos KPIs e o valor de cada lançamento está no Extrato; o saldo por dia não está em lugar nenhum. |
-| ≤ 860px | Barra de navegação vai para baixo, FAB entra nela, alvos de toque sobem para 44px. |
+| ≤ 860px | Barra de navegação vai para baixo, FAB entra nela, alvos de toque sobem para 44px. O formulário vira folha de baixo, com o pé grudado. |
 | ≤ 1030px | O placar vira grade: saldo na linha inteira, as duas projeções lado a lado embaixo. Em flex elas caíam como 2 + 1, com o "menor saldo" órfão. O limite é medido, não escolhido: as três cifras pedem 731px e o `.placar` só alcança isso acima de ~1030. |
+
+## O formulário com o teclado aberto
+
+O lançamento é o gesto mais repetido do app e acontece quase sempre no celular,
+com o teclado na tela. Num iPhone 13 mini isso deixa ~470px de altura visível
+para um formulário que media 746 — e o iOS **não** encolhe o viewport de layout
+quando o teclado sobe, só o visual. A folha continuava com a altura toda e a
+base em 812, atrás do teclado; como ela não transbordava, não havia nada pra
+rolar, e o "Salvar" só existia depois de fechar o teclado.
+
+Três decisões, nesta ordem:
+
+1. **A altura vem do viewport visual.** `--vvh` é alimentado em `app.js` pelo
+   `visualViewport` e lido em `#modal{height:min(100dvh,var(--vvh,100dvh))}`.
+   O `min` é trava, não preferência: a variável só pode *encolher* o modal, e
+   um valor desatualizado no pior caso não melhora nada.
+2. **O pé gruda.** Erro de validação e ações são um bloco só (`.sheetend`),
+   `position:sticky` no fim da folha. Mostrar "Salvar" sem mostrar o motivo da
+   recusa seria pior do que não grudar nenhum dos dois.
+3. **O formulário encurta.** 746 → 646px: "Data" e "Já realizado" pareados
+   economizam 77px, e os alvos de toque que faltavam (Despesa/Receita media 38,
+   "Já realizado" media 24) subiram para 44 sem custar altura.
 
 ## Checklist (§13)
 
@@ -191,6 +214,8 @@ deve migrá-los para a escala.
 - [x] Nenhuma animação em JS (a regra do CSS basta — mas se surgir uma, ela
       precisa consultar `matchMedia`, porque a media query não a alcança)
 - [x] Testei a 375 px, com a string mais longa que o app pode exibir
+- [x] Testei o formulário a 375×475 — a altura que sobra num 13 mini com o
+      teclado aberto —, e não só a 375×812
 - [x] Rodei a auditoria de contraste **na página renderizada**, nas cinco telas
       e no formulário — e foi ela que pegou o caso da etiqueta
 - [ ] O objeto colecionável tem personalidade visto sozinho — a ficha do dia
