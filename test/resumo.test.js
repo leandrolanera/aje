@@ -121,21 +121,41 @@ test("o que já passou no mês não limita o que falta", () => {
   assert.ok(r.menorSaldoEm >= "2026-10-20");
 });
 
-test("semanas restantes e valor por semana", () => {
+test("a janela conta os dias dos dois meses", () => {
   const S = estado([manual({ data: "2026-10-01", valor: 0 })]);
   const r = Core.resumoDiario(S, [], "2026-10-25");
-  assert.equal(r.diasRestantes, 7, "do dia 25 ao 31");
-  assert.equal(r.semanasRestantes, 1);
-  assert.equal(r.porSemana, r.menorSaldo, "com uma semana, o orçamento é o saldo inteiro");
+  assert.equal(r.diasRestantes, 37, "7 dias de outubro mais os 30 de novembro");
+  assert.equal(r.semanasRestantes, 6);
+  assert.equal(r.fimDaJanela, "2026-11-30");
 });
 
-test("no último dia do mês ainda sobra uma semana, nunca zero", () => {
-  /* Dividir por zero daria Infinity no orçamento. */
+test("no último dia do mês a janela ainda tem o mês seguinte inteiro", () => {
+  /* Era a patologia da janela de um mês só: em 31/10 sobrava "1 semana" e o
+     orçamento liberava de uma vez o buffer que tinha de durar novembro. */
   const S = estado([manual({ data: "2026-10-01", valor: 0 })]);
   const r = Core.resumoDiario(S, [], "2026-10-31");
-  assert.equal(r.diasRestantes, 1);
-  assert.equal(r.semanasRestantes, 1);
+  assert.equal(r.diasRestantes, 31);
+  assert.equal(r.semanasRestantes, 5);
   assert.ok(Number.isFinite(r.porSemana));
+});
+
+test("a janela vira o ano sem inventar mês 13", () => {
+  const S = estado([manual({ data: "2026-12-01", valor: 0 })]);
+  const r = Core.resumoDiario(S, [], "2026-12-20");
+  assert.equal(r.fimDaJanela, "2027-01-31");
+  assert.equal(r.menorSaldo, 100000, "sem lançamento, o saldo inicial atravessa a janela");
+});
+
+test("compra no crédito que vence no mês seguinte entra na conta", () => {
+  /* O motivo de a janela ter dois meses: compra feita depois do fechamento
+     (dia 17) só vence em 24 do mês seguinte. Com a janela terminando em
+     31/10, o orçamento ignorava justamente a consequência do gasto da
+     semana — e quem compra no crédito gasta sempre assim. */
+  const S = estado([manual({ data: "2026-10-01", valor: 0, desc: "marco" })]);
+  const pg = [imp({ data: "2026-10-20", valor: 70000, fatura: "2026-11" })];
+  const r = Core.resumoDiario(S, pg, "2026-10-21");
+  assert.equal(r.menorSaldoEm, "2026-11-24", "o vale está em novembro");
+  assert.equal(r.menorSaldo, 30000);
 });
 
 test("saldo negativo vira aviso de rombo, não orçamento negativo", () => {
@@ -162,6 +182,75 @@ test("considera todas as contas somadas", () => {
   assert.equal(Core.resumoDiario(S, [], "2026-10-10").menorSaldo, 120000);
 });
 
+/* ---------- pagamento da fatura lançado à mão ---------- */
+
+/*
+ * Antes da Pluggy, lançar "Fatura Nubank" à mão era a única forma de
+ * registrar o cartão. Com o agregado vindo da Pluggy, o mesmo dinheiro
+ * passou a sair duas vezes — e ainda aparecia como gasto do dia.
+ */
+
+test("pagamento manual da fatura não conta como gasto de ontem", () => {
+  /* As compras já foram contadas no dia de cada uma; a fatura é só a
+     liquidação delas. Somar as duas coisas inflava "ontem você gastou". */
+  const S = estado([
+    manual({ data: "2026-10-20", valor: 180000, desc: "AP" }),
+    manual({ data: "2026-10-20", valor: 66000, desc: "Fatura Nubank", cat: "car" })
+  ]);
+  const pg = [imp({ data: "2026-10-10", valor: 66000, cat: "car", fatura: "2026-10" })];
+  const r = Core.resumoDiario(S, pg, "2026-10-21");
+  assert.equal(r.gastos, 180000, "só o AP");
+  assert.deepEqual(r.itens.map(i => i.desc), ["AP"]);
+});
+
+test("pagamento manual da fatura não desconta duas vezes do saldo", () => {
+  const marco = manual({ data: "2026-10-01", valor: 0 });
+  const pg = [imp({ data: "2026-10-10", valor: 66000, cat: "car", fatura: "2026-10" })];
+  const semManual = Core.realNow(estado([marco]), pg, "all");
+  const comManual = Core.realNow(estado([marco,
+    manual({ data: "2026-10-20", valor: 66000, desc: "Fatura Nubank", cat: "car" })]), pg, "all");
+  assert.equal(comManual, semManual, "o agregado da Pluggy é a única cobrança da fatura");
+});
+
+test("sem fatura agregada no mês, o lançamento manual continua valendo", () => {
+  /* Histórico anterior à Pluggy: ali a fatura lançada à mão é o único
+     registro que existe da despesa, e descartá-la sumiria com ela. */
+  const S = estado([
+    manual({ data: "2026-01-01", valor: 0 }),
+    manual({ data: "2026-03-24", valor: 50000, desc: "Fatura Nubank", cat: "car" })
+  ]);
+  assert.equal(Core.realNow(S, [], "all"), 50000, "100.000 de saldo inicial menos a fatura");
+});
+
+test("a fatura substituída sai das somas mas continua na lista da tela", () => {
+  /* Some das somas (placar e despesas por categoria somam por `list`) e
+     continua visível, com marca — senão pareceria dado perdido, e não
+     haveria por onde excluí-la. */
+  const S = estado([
+    manual({ data: "2026-10-01", valor: 0 }),
+    manual({ data: "2026-10-20", valor: 66000, desc: "Fatura Nubank", cat: "car" })
+  ]);
+  const pg = [imp({ data: "2026-10-10", valor: 66000, cat: "car", fatura: "2026-10" })];
+  const ser = Core.monthSeries(S, pg, 2026, 9, "all");
+  assert.ok(!ser.list.some(t => t.desc === "Fatura Nubank" && !t.isFatura),
+    "fora de `list`, que é o que conta");
+  assert.equal(ser.days[19].eout, 0, "o dia 20 não teve despesa própria");
+  assert.deepEqual(ser.substituidas.map(t => t.desc), ["Fatura Nubank"]);
+  assert.equal(ser.substituidas[0].substituida, true, "a tela precisa da marca pro selo");
+});
+
+test("compra importada sem categoria mapeada não é tomada por pagamento de fatura", () => {
+  /* `mapCategory` cai em "car" por padrão, então toda compra de cartão sem
+     categoria conhecida chega com essa categoria. O que distingue o
+     pagamento é estar fora da conta do cartão e não ser importado. */
+  const S = estado([manual({ data: "2026-10-01", valor: 0 })]);
+  const pg = [imp({ data: "2026-10-10", valor: 7000, cat: "car", fatura: "2026-10" })];
+  /* Pelo saldo previsto, e não por `realNow`: a fatura vence em 24/10 e
+     `realNow` só conta o que já aconteceu. */
+  assert.equal(Core.balanceBefore(S, pg, "2026-11-01", "all", false), 93000,
+    "a compra virou fatura e descontou uma vez");
+});
+
 /* ---------- texto ---------- */
 
 test("o texto diz o gasto, os maiores itens e o orçamento", () => {
@@ -176,6 +265,14 @@ test("o texto diz o gasto, os maiores itens e o orçamento", () => {
   assert.match(t, /• Feira — R\$\s30,00/);
   assert.match(t, /Dá para gastar R\$\s.* por semana/);
   assert.match(t, /Menor saldo previsto/);
+});
+
+test("o texto nomeia o fim da janela, não 'o fim do mês'", () => {
+  /* Com a janela passando de um mês, "até o fim do mês" mentiria sobre o
+     prazo que o número cobre. */
+  const S = estado([manual({ data: "2026-10-01", valor: 0 })]);
+  const t = Core.resumoTexto(Core.resumoDiario(S, [], "2026-10-15"));
+  assert.match(t, /por semana até 30\/11/);
 });
 
 test("o texto avisa quando não houve gasto", () => {

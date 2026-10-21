@@ -168,9 +168,48 @@ var Core = (function () {
    * de milhares de reais de despesa no saldo.
    */
   const inicioControle = S => S.tx.reduce((m, t) => !m || t.data < m ? t.data : m, "");
-  function allTx(S, pluggyTx) {
+
+  /*
+   * A fatura paga à mão — o lançamento que era a única forma de registrar o
+   * cartão antes da Pluggy.
+   *
+   * O que a identifica é a categoria Cartão de crédito FORA da conta do
+   * cartão: é a convenção do próprio app (a geração de exemplo em app.js
+   * lança "Fatura do cartão" exatamente assim) e a mesma que o agregado
+   * sintético usa. `imported` é o que separa os dois casos — a compra que
+   * chega da Pluggy cai em "car" por padrão quando a categoria não é
+   * conhecida, e não pode ser confundida com o pagamento.
+   */
+  const ehPagamentoFatura = t => !t.imported && t.tipo === "d" && t.cat === "car" && t.conta !== "nubank";
+
+  /* As faturas que de fato contam, já sem as anteriores ao início do
+     controle. */
+  function faturasAtivas(S, pluggyTx) {
     const ini = inicioControle(S);
-    return S.tx.concat(pluggyBillEntries(S, pluggyTx).filter(f => !ini || f.data >= ini));
+    return pluggyBillEntries(S, pluggyTx).filter(f => !ini || f.data >= ini);
+  }
+  const mesesComFatura = (S, pluggyTx) => {
+    const m = {};
+    for (const f of faturasAtivas(S, pluggyTx)) m[f.data.slice(0, 7)] = true;
+    return m;
+  };
+
+  /*
+   * Onde a Pluggy já cobre o ciclo, o agregado é a única cobrança da fatura:
+   * manter também o lançamento manual descontava o mesmo dinheiro duas
+   * vezes. Fora dos meses cobertos o manual continua valendo — no histórico
+   * anterior à Pluggy ele é o único registro da despesa, e descartá-lo
+   * sumiria com ela.
+   */
+  function substituidas(S, pluggyTx) {
+    const cobertos = mesesComFatura(S, pluggyTx);
+    return S.tx.filter(t => ehPagamentoFatura(t) && cobertos[t.data.slice(0, 7)])
+      .map(t => Object.assign({}, t, { substituida: true }));
+  }
+  function allTx(S, pluggyTx) {
+    const cobertos = mesesComFatura(S, pluggyTx);
+    return S.tx.filter(t => !(ehPagamentoFatura(t) && cobertos[t.data.slice(0, 7)]))
+      .concat(faturasAtivas(S, pluggyTx));
   }
   function txs(S, pluggyTx, c) {
     if (c === "nubank") return S.tx.filter(t => t.conta === "nubank").concat(pluggyTx);
@@ -192,8 +231,20 @@ var Core = (function () {
   }
   function monthSeries(S, pluggyTx, y, m, c) {
     const ym = y + "-" + pad(m + 1), start = ym + "-01", n = new Date(y, m + 1, 0).getDate();
-    const list = txs(S, pluggyTx, c).filter(t => t.data.slice(0, 7) === ym), by = {};
+    const noMes = t => t.data.slice(0, 7) === ym;
+    const list = txs(S, pluggyTx, c).filter(noMes), by = {};
     list.forEach(t => (by[t.data] = by[t.data] || []).push(t));
+    /*
+     * As faturas manuais que o agregado substituiu vêm FORA de `list`, de
+     * propósito: `list` é o que conta, e quem soma por ela (placar e
+     * despesas por categoria em app.js) voltaria a contar o mesmo dinheiro
+     * duas vezes. Mas elas não podem simplesmente desaparecer da tela —
+     * lançamento digitado que some sem explicação parece perda de dado, e é
+     * pela linha dele que se chega ao botão de excluir. Quem exibe junta as
+     * duas listas; quem soma usa só `list`.
+     */
+    const subs = substituidas(S, pluggyTx)
+      .filter(t => noMes(t) && (c === "all" || t.conta === c));
     const openP = balanceBefore(S, pluggyTx, start, c, false);
     let proj = openP, real = balanceBefore(S, pluggyTx, start, c, true);
     const days = [];
@@ -203,7 +254,7 @@ var Core = (function () {
       proj += ein - eout; real += rd;
       days.push({ key, d, ein, eout, proj, real, n: (by[key] || []).length });
     }
-    return { ym, start, n, days, list, open: openP };
+    return { ym, start, n, days, list, substituidas: subs, open: openP };
   }
 
   /* ---------- resumo diário ---------- */
@@ -212,11 +263,17 @@ var Core = (function () {
    * O que o Esu manda por Telegram todo dia.
    *
    * "Quanto posso gastar na semana" é o MENOR saldo previsto entre hoje e o
-   * fim do mês, dividido pelas semanas que faltam — e não o saldo do último
-   * dia. A diferença importa: com a fatura vencendo no dia 24, o saldo
-   * mergulha no meio do mês e volta a subir com o salário. Dividir o saldo
-   * final deixaria gastar dinheiro que não existe no dia 24; dividir o menor
-   * ponto respeita o vale.
+   * fim do mês SEGUINTE, dividido pelas semanas dessa mesma janela — e não o
+   * saldo do último dia. A diferença importa: com a fatura vencendo no dia
+   * 24, o saldo mergulha no meio do mês e volta a subir com o salário.
+   * Dividir o saldo final deixaria gastar dinheiro que não existe no dia 24;
+   * dividir o menor ponto respeita o vale.
+   *
+   * Piso e divisor saem da MESMA janela de propósito. Usar o piso dos dois
+   * meses com as semanas de um só daria um ritmo que consome toda a folga
+   * até o dia 1º — e no fim do mês seria pior ainda: com "1 semana
+   * restante" o número liberaria de uma vez o buffer que tem de durar o mês
+   * inteiro.
    */
   function resumoDiario(S, pluggyTx, hojeISO) {
     const hoje = hojeISO || todayISO();
@@ -224,20 +281,43 @@ var Core = (function () {
 
     /* Gastos saem de everyTx (fatos crus), não de allTx: interessa a compra
        que foi feita, não o agregado da fatura — que cai no vencimento e não
-       no dia em que se gastou. */
-    const doDia = everyTx(S, pluggyTx).filter(t => t.data === ontem && t.tipo === "d" && !t.pagamento);
+       no dia em que se gastou.
+
+       Pagar a fatura também não é gastar: as compras já foram contadas no
+       dia de cada uma, e somar a liquidação inflava o total do dia. Só vale
+       descartar onde a Pluggy cobre o ciclo; fora disso o lançamento manual
+       é o único registro daquela despesa. */
+    const cobertos = mesesComFatura(S, pluggyTx);
+    const doDia = everyTx(S, pluggyTx).filter(t => t.data === ontem && t.tipo === "d"
+      && !t.pagamento && !(ehPagamentoFatura(t) && cobertos[t.data.slice(0, 7)]));
     const gastos = doDia.reduce((s, t) => s + t.valor, 0);
     const itens = doDia.slice().sort((a, b) => b.valor - a.valor)
       .map(t => ({ desc: t.desc, valor: t.valor, cat: t.cat, importado: !!t.imported }));
 
     const d = parse(hoje), ser = monthSeries(S, pluggyTx, d.getFullYear(), d.getMonth(), "all");
+    /*
+     * A janela passa do fim do mês porque compra no crédito não sai da conta
+     * no mês em que é feita: depois do fechamento (dia 17) ela só vence em
+     * 24 do mês seguinte. Olhando só até 31/10, o orçamento ignorava
+     * justamente a consequência do gasto desta semana — e quem compra no
+     * crédito gasta sempre assim.
+     *
+     * O mês seguinte vem pelo dia 1 (`addMonths` sobre "...-01") porque
+     * `getMonth() + 1` em dezembro daria o mês 13 e um "2026-13" como
+     * chave.
+     */
+    const p = parse(addMonths(hoje.slice(0, 8) + "01", 1));
+    const prox = monthSeries(S, pluggyTx, p.getFullYear(), p.getMonth(), "all");
+    /* Emendar as duas séries é seguro: `monthSeries` abre cada mês com
+       `balanceBefore`, então a abertura do mês seguinte é exatamente o
+       fechamento deste. */
     /* Começa em hoje, não no dia 1: o que já passou não limita o que ainda
        dá para gastar. */
-    const deHoje = ser.days.slice(d.getDate() - 1);
-    let menor = deHoje[0];
-    for (const dia of deHoje) if (dia.proj < menor.proj) menor = dia;
+    const janela = ser.days.slice(d.getDate() - 1).concat(prox.days);
+    let menor = janela[0];
+    for (const dia of janela) if (dia.proj < menor.proj) menor = dia;
 
-    const diasRestantes = deHoje.length;
+    const diasRestantes = janela.length;
     const semanasRestantes = Math.max(1, Math.ceil(diasRestantes / 7));
     /* Saldo negativo dividido por semanas daria um "pode gastar" negativo,
        que não quer dizer nada — nesse caso a resposta é o rombo, não um
@@ -249,6 +329,7 @@ var Core = (function () {
       menorSaldo: menor.proj,
       menorSaldoEm: menor.key,
       saldoFimDoMes: ser.days[ser.n - 1].proj,
+      fimDaJanela: janela[janela.length - 1].key,
       diasRestantes, semanasRestantes,
       porSemana: vermelho ? 0 : Math.floor(menor.proj / semanasRestantes),
       vermelho
@@ -258,6 +339,7 @@ var Core = (function () {
   /* Texto pronto para o Telegram. Fica aqui, e não no Esu, para o agente não
      precisar saber formatar dinheiro em pt-BR nem conhecer as regras. */
   function resumoTexto(r) {
+    const ddmm = k => k.slice(8, 10) + "/" + k.slice(5, 7);
     const linhas = [];
     linhas.push(r.gastos > 0
       ? "Ontem você gastou " + money(r.gastos) + "."
@@ -266,12 +348,15 @@ var Core = (function () {
     for (const i of r.itens.slice(0, 3)) linhas.push("• " + i.desc + " — " + money(i.valor));
 
     if (r.vermelho) {
-      linhas.push("Atenção: o saldo fica negativo em " + r.menorSaldoEm.slice(8, 10) + "/" +
-        r.menorSaldoEm.slice(5, 7) + " (" + money(r.menorSaldo) + ").");
+      linhas.push("Atenção: o saldo fica negativo em " + ddmm(r.menorSaldoEm) +
+        " (" + money(r.menorSaldo) + ").");
     } else {
-      linhas.push("Dá para gastar " + money(r.porSemana) + " por semana até o fim do mês.");
+      /* A data em vez de "o fim do mês": a janela passa de um mês, e dizer
+         "o fim do mês" mentiria sobre o prazo que o número cobre. */
+      linhas.push("Dá para gastar " + money(r.porSemana) + " por semana até " +
+        ddmm(r.fimDaJanela) + ".");
       linhas.push("Menor saldo previsto: " + money(r.menorSaldo) + " em " +
-        r.menorSaldoEm.slice(8, 10) + "/" + r.menorSaldoEm.slice(5, 7) + ".");
+        ddmm(r.menorSaldoEm) + ".");
     }
     return linhas.join("\n");
   }
@@ -280,7 +365,8 @@ var Core = (function () {
     money, inMoney, pad, iso, parse, todayISO, addDays, addMonths, signed,
     PLUGGY_CAT_MAP, mapCategory, mapPluggyRow, dedupPendentes,
     FATURA_DIA, FATURA_FECHA, faturaDe, vencDe, contaFatura, pluggyBillEntries,
-    everyTx, inicioControle, allTx, txs,
+    everyTx, inicioControle, ehPagamentoFatura, faturasAtivas, mesesComFatura,
+    substituidas, allTx, txs,
     opening, balanceBefore, realNow, monthSeries,
     resumoDiario, resumoTexto
   };

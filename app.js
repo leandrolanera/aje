@@ -331,6 +331,9 @@ function rowHTML(t,showDate){
   const late=!t.ok&&t.data<T;
   let badges="";
   if(t.isFatura)badges+='<span class="pill">'+t.count+(t.count===1?" compra":" compras")+'</span>';
+  /* Sem selo, a linha pareceria estar contando no saldo — e o número do
+     placar não fecharia com a soma que você faz de cabeça. */
+  else if(t.substituida)badges+='<span class="pill">Substituída pela fatura do Nubank</span>';
   else if(t.pagamento)badges+='<span class="pill">Pagamento da fatura</span>';
   else if(t.imported)badges+='<span class="pill">Nubank</span>';
   if(late)badges+='<span class="pill late">Atrasado</span>';
@@ -389,7 +392,11 @@ function viewGeral(){
 }
 function filteredList(){
   const ser=curSeries(),q=filtro.q.trim().toLowerCase();
-  return ser.list.filter(t=>(filtro.status==="all"||(filtro.status==="ok")===t.ok)&&(filtro.tipo==="all"||t.tipo===filtro.tipo)&&(filtro.cat==="all"||t.cat===filtro.cat)&&(!q||t.desc.toLowerCase().indexOf(q)>=0||catOf(t.cat).nome.toLowerCase().indexOf(q)>=0));
+  /* `substituidas` entra só aqui, na exibição: são as faturas lançadas à mão
+     que o agregado do Nubank substituiu. Não somam em lugar nenhum (ver
+     monthSeries em core.js), mas continuam na lista pra você ver e poder
+     excluir. */
+  return ser.list.concat(ser.substituidas).filter(t=>(filtro.status==="all"||(filtro.status==="ok")===t.ok)&&(filtro.tipo==="all"||t.tipo===filtro.tipo)&&(filtro.cat==="all"||t.cat===filtro.cat)&&(!q||t.desc.toLowerCase().indexOf(q)>=0||catOf(t.cat).nome.toLowerCase().indexOf(q)>=0));
 }
 function listHTML(){
   const ser=curSeries(),list=filteredList(),T=todayISO();

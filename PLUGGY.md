@@ -172,7 +172,7 @@ granularizar aqui.
   gravado de volta.
 - As compras individuais não contam separadamente no saldo — isso
   duplicaria a despesa quando a fatura também descontasse da conta
-  corrente. `pluggyBillEntries()` em `app.js` soma as compras de cada ciclo
+  corrente. `pluggyBillEntries()` em `core.js` soma as compras de cada ciclo
   num lançamento único por vencimento, na conta corrente, categoria Cartão
   de crédito. É esse agregado que `allTx()`/`txs()` usa pro saldo geral; as
   compras individuais só aparecem ao filtrar especificamente pela conta
@@ -197,6 +197,19 @@ granularizar aqui.
   então uma compra em 10x vira automaticamente uma linha em cada uma das
   próximas 10 faturas. Não é projeção nossa: é dívida já assumida caindo no
   ciclo dela, e por isso aparece na previsão de saldo dos meses seguintes.
+- **A fatura que você lançava à mão é substituída pelo agregado.** Antes da
+  Pluggy, lançar "Fatura do cartão" na conta corrente era a única forma de
+  registrar o cartão. Com o agregado vindo da Pluggy, o mesmo dinheiro
+  passava a sair duas vezes do saldo — e ainda contava como gasto do dia no
+  resumo. Onde existe fatura agregada para o ciclo, o lançamento manual sai
+  de todas as somas (`ehPagamentoFatura`/`substituidas` em `core.js`). O que
+  o identifica é a categoria **Cartão de crédito fora da conta do cartão**,
+  e não ser importado.
+  - **Fora dos meses cobertos ele continua valendo**, porque no histórico
+    anterior à Pluggy é o único registro que existe daquela despesa.
+  - Ele **não some da tela**: continua na lista com o selo "Substituída pela
+    fatura do Nubank", e continua clicável pra você excluir. Quem soma usa
+    `monthSeries().list`; quem exibe junta `list` com `substituidas`.
 - O webhook é verificado pelo header `x-webhook-secret` (segredo
   compartilhado que a própria Pluggy devolve, configurado no passo 6 — não
   é assinatura HMAC, mas já prova que a chamada veio de quem conhece o
