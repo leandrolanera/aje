@@ -354,6 +354,57 @@ test("endpoint recusa sem chave e com chave errada", async () => {
   }
 });
 
+test("endpoint aceita a chave no cabeçalho Authorization", async () => {
+  instalaSupabase({ appState: null });
+  const h = carrega();
+  const ok = mkRes();
+  await h({ query: {}, headers: { authorization: "Bearer s3gr3d0" } }, ok);
+  assert.equal(ok.code, 200);
+  for (const authorization of ["Bearer errada", "s3gr3d0", "Bearer ", "Basic s3gr3d0"]) {
+    const res = mkRes();
+    await h({ query: {}, headers: { authorization } }, res);
+    assert.equal(res.code, 403, authorization);
+  }
+});
+
+test("sem segredo configurado, nem chave vazia entra", async () => {
+  delete process.env.AJE_RESUMO_SECRET;
+  instalaSupabase({ appState: null });
+  const h = carrega();
+  for (const req of [{ query: {} }, { query: { key: "" } }, { query: {}, headers: { authorization: "Bearer " } }]) {
+    const res = mkRes();
+    await h(req, res);
+    assert.equal(res.code, 403, JSON.stringify(req));
+  }
+});
+
+test("endpoint usa o hoje de quem pergunta, não o relógio da Vercel", async () => {
+  /* A função roda em UTC: às 22h de Brasília o relógio de lá já está no
+     dia seguinte, e o "ontem" do resumo seria o dia de hoje. */
+  instalaSupabase({
+    appState: { data: estado([manual({ data: "2026-10-01", valor: 0 })]) },
+    linhas: [{ transaction_id: "11111111-1111-1111-1111-111111111111", date: "2026-10-14",
+      description: "iFood", amount_cents: 4590, tipo: "d", status: "POSTED",
+      category_pluggy: "Restaurante", fatura: "2026-10" }]
+  });
+  const res = mkRes();
+  await carrega()({ query: { hoje: "2026-10-15" }, headers: { authorization: "Bearer s3gr3d0" } }, res);
+  assert.equal(res.body.hoje, "2026-10-15");
+  assert.equal(res.body.ontem, "2026-10-14");
+  assert.equal(res.body.gastos, 4590);
+});
+
+test("hoje inválido cai no relógio do servidor", async () => {
+  instalaSupabase({ appState: { data: estado([manual({ data: "2026-10-01", valor: 0 })]) } });
+  const h = carrega();
+  for (const hoje of ["2026-02-31", "15/10/2026", "2026-10-15T00:00", "", ["2026-10-15"]]) {
+    const res = mkRes();
+    await h({ query: { key: "s3gr3d0", hoje } }, res);
+    assert.equal(res.code, 200, JSON.stringify(hoje));
+    assert.equal(res.body.hoje, Core.todayISO(), JSON.stringify(hoje));
+  }
+});
+
 test("endpoint devolve o resumo e o texto pronto", async () => {
   instalaSupabase({
     appState: { data: estado([manual({ data: "2026-10-01", valor: 0 })]) },

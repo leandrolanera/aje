@@ -9,8 +9,18 @@
  * duplicata PENDING/POSTED, ciclo de fechamento) são cheias de caso
  * particular, e uma segunda implementação divergiria em silêncio.
  *
- * Uso: GET /api/resumo?key=SEU_AJE_RESUMO_SECRET
+ * Uso: GET /api/resumo?hoje=AAAA-MM-DD
+ *      com o cabeçalho  Authorization: Bearer SEU_AJE_RESUMO_SECRET
+ *
+ * O segredo no cabeçalho, e não na URL: URL vai parar em log — o do
+ * cliente (o httpx do Esu registra a URL inteira) e o de acesso da Vercel.
+ * `?key=` continua aceito para o curl manual e para clientes antigos.
+ *
+ * `hoje` existe porque a função roda em UTC: sem ele, depois das 21h no
+ * horário de Brasília o "ontem" daqui já seria o dia de hoje de quem
+ * pergunta. Sem `hoje`, ou com data inválida, vale o relógio do servidor.
  */
+const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
 const Core = require("../core.js");
 
@@ -32,9 +42,31 @@ async function lePluggyTx(supabase, uid) {
   }
 }
 
+function chaveDe(req) {
+  const auth = (req.headers || {}).authorization || "";
+  if (auth.startsWith("Bearer ")) return auth.slice(7);
+  return (req.query || {}).key || "";
+}
+
+/* Comparação em tempo constante: `!==` sai no primeiro caractere
+   diferente, e o tempo de resposta contaria quanto do segredo já acertou. */
+function chaveConfere(chave) {
+  const esperada = process.env.AJE_RESUMO_SECRET || "";
+  if (!chave || !esperada) return false;
+  const a = Buffer.from(chave), b = Buffer.from(esperada);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/* Só data real no formato ISO: "2026-02-31" passaria na regex e o
+   `Date` a empurraria para março sem avisar. */
+function hojeDe(req) {
+  const h = (req.query || {}).hoje;
+  if (typeof h !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(h)) return undefined;
+  return Core.iso(Core.parse(h)) === h ? h : undefined;
+}
+
 module.exports = async (req, res) => {
-  const key = (req.query || {}).key;
-  if (!key || key !== process.env.AJE_RESUMO_SECRET) {
+  if (!chaveConfere(chaveDe(req))) {
     return res.status(403).send("Chave inválida");
   }
 
@@ -52,7 +84,7 @@ module.exports = async (req, res) => {
     const S = linha.data;
     const pluggyTx = Core.dedupPendentes((await lePluggyTx(supabase, uid)).map(Core.mapPluggyRow));
 
-    const r = Core.resumoDiario(S, pluggyTx);
+    const r = Core.resumoDiario(S, pluggyTx, hojeDe(req));
     /* O texto vai pronto para o Telegram: assim o Esu não precisa saber
        formatar dinheiro em pt-BR nem conhecer as regras de fatura. */
     return res.status(200).json(Object.assign({ texto: Core.resumoTexto(r) }, r));
