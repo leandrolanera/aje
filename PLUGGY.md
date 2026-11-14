@@ -203,8 +203,15 @@ granularizar aqui.
   passava a sair duas vezes do saldo — e ainda contava como gasto do dia no
   resumo. Onde existe fatura agregada para o ciclo, o lançamento manual sai
   de todas as somas (`ehPagamentoFatura`/`substituidas` em `core.js`). O que
-  o identifica é a categoria **Cartão de crédito fora da conta do cartão**,
-  e não ser importado.
+  o identifica é a **descrição nomear o Nubank**, fora da conta do cartão e
+  não importado.
+  - **Pela descrição, e não pela categoria.** Categoria parecia o sinal
+    certo (a geração de exemplo lança "Fatura do cartão" em "car"), mas nos
+    dados reais ela erra nos dois sentidos: a fatura do Nubank costuma acabar
+    em "Moradia", junto das outras contas do mês, e a fatura de **outro**
+    cartão costuma estar em "Cartão de crédito". Pela categoria, o agregado
+    do Nubank engolia a fatura de um cartão que não tem nada a ver com ele —
+    apagando do saldo uma dívida real, em silêncio.
   - **Fora dos meses cobertos ele continua valendo**, porque no histórico
     anterior à Pluggy é o único registro que existe daquela despesa.
   - Ele **não some da tela**: continua na lista com o selo "Substituída pela
