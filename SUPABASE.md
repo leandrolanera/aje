@@ -102,6 +102,43 @@ rápido de entrar, lado a lado.
   Supabase dispara `USER_UPDATED` em vez de `SIGNED_IN`, e `setupAuth`
   trata esse evento separado para só atualizar a tela.
 
+## Manter o projeto acordado (plano gratuito)
+
+O plano gratuito **pausa projetos com pouca atividade numa janela de 7
+dias**. Pausado, o estrago é completo e simultâneo: login com Google falha,
+a sincronização do Nubank some, o app leva 8 segundos para cair no
+localStorage e o briefing do Esu fica cego. Segundo a
+[documentação](https://supabase.com/docs/guides/platform/free-project-pausing),
+algumas consultas ao banco por dia bastam para evitar a pausa — e o
+Supabase manda um e-mail de aviso cerca de uma semana antes.
+
+Por isso existe o [`api/keepalive.js`](api/keepalive.js), agendado uma vez
+por dia em `vercel.json`. Dois pontos que o desenho leva a sério:
+
+- **Ele consulta o banco, não só responde 200.** A atividade que conta é
+  requisição ao Postgres; página estática no Vercel não toca no Supabase.
+- **Ele falha alto.** O Vercel não repete invocação de cron, então um 500 no
+  log é o único aviso de que o banco parou de responder. Devolver 200 com o
+  erro engolido faria dele um alarme que nunca toca.
+
+O briefing diário do Esu já consultava o banco todo dia e o projeto pausou
+assim mesmo — daí o keepalive rodar no Vercel, ao lado das credenciais, sem
+depender de a Fly ou o agendador do Esu estarem de pé.
+
+Para ligar, basta criar a variável `CRON_SECRET` nas configurações do
+projeto no Vercel (string aleatória, 16+ caracteres, só letras e números —
+ela vai num cabeçalho HTTP). O Vercel passa a enviá-la automaticamente em
+`Authorization: Bearer` a cada invocação. Sem a variável, o endpoint recusa
+tudo.
+
+Duas restrições do plano Hobby do Vercel: o cron roda **no máximo uma vez
+por dia** (expressão mais frequente falha o deploy) e dispara em qualquer
+momento dentro da hora marcada. Para uma janela de 7 dias, sobra folga.
+
+Vale saber também que o plano gratuito dá **2 projetos ativos**, contados em
+todas as organizações onde você é Owner — mas **projetos pausados não
+contam**. Manter este acordado consome uma das duas vagas.
+
 ## Limitações conhecidas
 
 O Supabase não funde contas automaticamente por e-mail verificado entre
