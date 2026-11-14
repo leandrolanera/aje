@@ -239,6 +239,33 @@ test("a fatura substituída sai das somas mas continua na lista da tela", () => 
   assert.equal(ser.substituidas[0].substituida, true, "a tela precisa da marca pro selo");
 });
 
+test("a fatura do Nubank em outra categoria continua sendo reconhecida", () => {
+  /* Nos dados reais ela acaba em "Moradia", junto das outras contas do mês.
+     Casando por categoria, a regra era inócua justamente onde precisava
+     valer. Por isso o sinal é a descrição nomear o cartão. */
+  const marco = manual({ data: "2026-10-01", valor: 0 });
+  const pg = [imp({ data: "2026-10-10", valor: 66000, fatura: "2026-10" })];
+  const sem = Core.balanceBefore(estado([marco]), pg, "2026-11-01", "all", false);
+  const com = Core.balanceBefore(estado([marco,
+    manual({ data: "2026-10-20", valor: 66000, desc: "Fatura Nubank", cat: "mor" })]),
+    pg, "2026-11-01", "all", false);
+  assert.equal(com, sem, "o agregado é a única cobrança, qualquer que seja a categoria");
+});
+
+test("a fatura de outro cartão não é engolida pelo agregado do Nubank", () => {
+  /* "Fatura Master" em "Cartão de crédito" é exatamente o padrão que a
+     regra por categoria procurava — e é dívida de um cartão que o app nem
+     sincroniza. Descartá-la apagaria do saldo um cartão inteiro, em
+     silêncio: pior que o problema que a regra veio resolver. */
+  const S = estado([
+    manual({ data: "2026-10-01", valor: 0 }),
+    manual({ data: "2026-10-05", valor: 288000, desc: "Fatura Master", cat: "car" })
+  ]);
+  const pg = [imp({ data: "2026-10-10", valor: 66000, fatura: "2026-10" })];
+  assert.equal(Core.balanceBefore(S, pg, "2026-11-01", "all", false), 100000 - 66000 - 288000,
+    "a dívida do outro cartão continua descontando");
+});
+
 test("compra importada sem categoria mapeada não é tomada por pagamento de fatura", () => {
   /* `mapCategory` cai em "car" por padrão, então toda compra de cartão sem
      categoria conhecida chega com essa categoria. O que distingue o

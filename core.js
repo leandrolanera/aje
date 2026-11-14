@@ -170,17 +170,25 @@ var Core = (function () {
   const inicioControle = S => S.tx.reduce((m, t) => !m || t.data < m ? t.data : m, "");
 
   /*
-   * A fatura paga à mão — o lançamento que era a única forma de registrar o
-   * cartão antes da Pluggy.
+   * A fatura do Nubank paga à mão — o lançamento que era a única forma de
+   * registrar o cartão antes da sincronização.
    *
-   * O que a identifica é a categoria Cartão de crédito FORA da conta do
-   * cartão: é a convenção do próprio app (a geração de exemplo em app.js
-   * lança "Fatura do cartão" exatamente assim) e a mesma que o agregado
-   * sintético usa. `imported` é o que separa os dois casos — a compra que
-   * chega da Pluggy cai em "car" por padrão quando a categoria não é
-   * conhecida, e não pode ser confundida com o pagamento.
+   * O casamento é pela DESCRIÇÃO nomear o cartão, e não pela categoria.
+   * Categoria parecia o sinal certo — a geração de exemplo em app.js lança
+   * "Fatura do cartão" em "car" —, mas nos dados reais ela erra nos DOIS
+   * sentidos: a fatura do Nubank costuma acabar em "Moradia", junto das
+   * outras contas do mês, e a fatura de OUTRO cartão costuma estar em
+   * "Cartão de crédito". Pela categoria, o agregado do Nubank engoliria a
+   * fatura de um cartão que não tem nada a ver com ele, apagando do saldo
+   * uma dívida real — e sumir com um cartão inteiro, em silêncio, é pior do
+   * que o problema que esta regra veio resolver.
+   *
+   * Fora da conta do cartão, porque dentro dela o lançamento é compra e não
+   * pagamento. E não importado, porque o próprio agregado sintético se
+   * chama "Fatura Nubank" e casaria com a regra.
    */
-  const ehPagamentoFatura = t => !t.imported && t.tipo === "d" && t.cat === "car" && t.conta !== "nubank";
+  const ehPagamentoFatura = t => !t.imported && t.tipo === "d"
+    && t.conta !== "nubank" && /nubank/i.test(t.desc || "");
 
   /* As faturas que de fato contam, já sem as anteriores ao início do
      controle. */
