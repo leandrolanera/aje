@@ -36,8 +36,26 @@ function estado(tx = [], rev = 1) {
     tx
   };
 }
+const DIA = "2026-10-10";
 function lanc(o) {
-  return Object.assign({ id: "m1", data: "2026-10-10", desc: "X", valor: 100, tipo: "d", cat: "out", conta: "cc", ok: true }, o);
+  return Object.assign({ id: "m1", data: DIA, desc: "X", valor: 100, tipo: "d", cat: "out", conta: "cc", ok: true }, o);
+}
+
+/*
+ * A lista é por mês e abre no mês do relógio. Sem fixar `cur`, ela procurava
+ * o lançamento no mês corrente e a suíte quebrava sozinha a cada virada de
+ * mês — por calendário, não por regressão, e justamente nos quatro testes
+ * que guardam a reconciliação por `rev`, a parte que some com dado quando
+ * erra. `integracoes.test.js` já fixava o mês; aqui faltava.
+ *
+ * O mês sai da própria data do lançamento: como constante solta, os dois
+ * podiam divergir numa edição futura e o silêncio voltaria.
+ */
+const MES = { y: +DIA.slice(0, 4), m: +DIA.slice(5, 7) - 1 };
+function abreLista(b) {
+  b.set("cur", MES);
+  b.set("view", "lanc");
+  return b.viewLanc();
 }
 
 /* ---------- localStorage ---------- */
@@ -104,8 +122,7 @@ test("com documento remoto, o remoto manda", async () => {
   const ref = fakeRef({ existe: true, inicial: estado([lanc({ desc: "Remoto" })], 9) });
   await b.attachRef(ref, () => {});
   assert.equal(ref.gravados.length, 0, "nada a publicar: o remoto já é a verdade");
-  b.set("view", "lanc");
-  assert.match(b.viewLanc(), /Remoto/);
+  assert.match(abreLista(b), /Remoto/);
 });
 
 test("erro na leitura cai no modo local", async () => {
@@ -132,8 +149,7 @@ test("atualização remota mais nova substitui o estado", async () => {
   const ref = fakeRef({ existe: true, inicial: estado([lanc({ desc: "Inicial" })], 1) });
   await b.attachRef(ref, () => {});
   ref.empurra(estado([lanc({ desc: "Veio do celular" })], 5));
-  b.set("view", "lanc");
-  assert.match(b.viewLanc(), /Veio do celular/);
+  assert.match(abreLista(b), /Veio do celular/);
 });
 
 test("atualização remota mais velha é ignorada", async () => {
@@ -142,9 +158,9 @@ test("atualização remota mais velha é ignorada", async () => {
   const ref = fakeRef({ existe: true, inicial: estado([lanc({ desc: "Atual" })], 10) });
   await b.attachRef(ref, () => {});
   ref.empurra(estado([lanc({ desc: "Atrasada" })], 3));
-  b.set("view", "lanc");
-  assert.match(b.viewLanc(), /Atual/);
-  assert.ok(!b.viewLanc().includes("Atrasada"));
+  const lista = abreLista(b);
+  assert.match(lista, /Atual/);
+  assert.ok(!lista.includes("Atrasada"));
 });
 
 test("edição local pendente não é sobrescrita por eco do servidor", async () => {
@@ -154,8 +170,7 @@ test("edição local pendente não é sobrescrita por eco do servidor", async ()
   b.seedEstado([lanc({ desc: "Digitando agora" })]);
   b.persist();                       // marca como sujo
   ref.empurra(estado([lanc({ desc: "Eco antigo" })], 99));
-  b.set("view", "lanc");
-  assert.match(b.viewLanc(), /Digitando agora/, "o que o usuário acabou de digitar não pode sumir");
+  assert.match(abreLista(b), /Digitando agora/, "o que o usuário acabou de digitar não pode sumir");
 });
 
 /* ---------- gravação remota ---------- */
