@@ -424,10 +424,26 @@ var Core = (function () {
       linhas.push("Atenção: o saldo fica negativo em " + ddmm(r.menorSaldoEm) +
         " (" + money(r.menorSaldo) + ").");
     } else {
-      /* A data em vez de "o fim do mês": a janela passa de um mês, e dizer
-         "o fim do mês" mentiria sobre o prazo que o número cobre. */
-      linhas.push("Dá para gastar " + money(r.porSemana) + " por semana até " +
-        ddmm(r.fimDaJanela) + ".");
+      /*
+       * `porSemana` só aparece sem teto configurado, porque os dois são
+       * orçamentos semanais e responder duas coisas diferentes à mesma
+       * pergunta não ajuda ninguém a decidir:
+       *
+       * - `porSemana` divide o menor saldo pelas semanas que faltam —
+       *   responde "até onde posso ir antes de o saldo mínimo zerar".
+       * - `tetoSemanal` vem do plano inteiro (renda menos fixos menos
+       *   compromissos) — responde "quanto cabe de forma sustentável".
+       *
+       * Juntas chegaram a divergir 3,5× na mesma mensagem. Quem definiu um
+       * teto já respondeu à pergunta; o menor saldo continua aparecendo,
+       * mas como indicador de risco, que é o papel dele.
+       */
+      if (!(s && s.teto)) {
+        /* A data em vez de "o fim do mês": a janela passa de um mês, e dizer
+           "o fim do mês" mentiria sobre o prazo que o número cobre. */
+        linhas.push("Dá para gastar " + money(r.porSemana) + " por semana até " +
+          ddmm(r.fimDaJanela) + ".");
+      }
       linhas.push("Menor saldo previsto: " + money(r.menorSaldo) + " em " +
         ddmm(r.menorSaldoEm) + ".");
     }

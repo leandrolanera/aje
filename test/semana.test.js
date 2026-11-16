@@ -132,6 +132,30 @@ test("o período aparece mesmo sem teto configurado", () => {
   assert.match(t, /Semana \(16\/11 a 22\/11\): R\$\s50,00 no cartão\./);
 });
 
+test("com teto, o texto não traz um segundo orçamento semanal", () => {
+  /* `porSemana` e `tetoSemanal` são os dois orçamentos de semana e
+     respondem perguntas diferentes — chegaram a divergir 3,5× na mesma
+     mensagem (R$ 635 contra R$ 177,98). Quem definiu teto já respondeu. */
+  const S = estado([{ id: "m0", data: "2026-11-01", desc: "marco", valor: 0,
+    tipo: "d", cat: "out", conta: "cc", ok: true }], 63500);
+  S.accounts[0].saldoInicial = 500000;   /* no azul, para cair no ramo normal */
+  const t = Core.resumoTexto(Core.resumoDiario(S, [compra({ valor: 8516 })], "2026-11-16"));
+  assert.ok(!/Dá para gastar/.test(t), "um orçamento semanal por mensagem");
+  assert.match(t, /Semana \(/, "o teto é o orçamento que fica");
+  /* O menor saldo continua: é indicador de risco, não orçamento. */
+  assert.match(t, /Menor saldo previsto/);
+});
+
+test("sem teto, o orçamento por semana continua aparecendo", () => {
+  /* Sem teto definido, `porSemana` é a única orientação disponível. */
+  const S = estado([{ id: "m0", data: "2026-11-01", desc: "marco", valor: 0,
+    tipo: "d", cat: "out", conta: "cc", ok: true }]);
+  S.accounts[0].saldoInicial = 500000;
+  const t = Core.resumoTexto(Core.resumoDiario(S, [compra({ valor: 8516 })], "2026-11-16"));
+  assert.match(t, /Dá para gastar R\$\s.* por semana até/);
+  assert.match(t, /Menor saldo previsto/);
+});
+
 test("estourado, o texto avisa em vez de dizer quanto resta", () => {
   const S = estado([{ id: "m0", data: "2026-11-01", desc: "marco", valor: 0,
     tipo: "d", cat: "out", conta: "cc", ok: true }], 63500);
