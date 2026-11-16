@@ -119,8 +119,17 @@ test("o texto do resumo mostra a semana e o que resta", () => {
     tipo: "d", cat: "out", conta: "cc", ok: true }], 63500);
   const pg = [compra({ valor: 42000 })];
   const t = Core.resumoTexto(Core.resumoDiario(S, pg, "2026-11-18"));
-  assert.match(t, /Semana: R\$\s420,00 de R\$\s635,00/);
+  assert.match(t, /Semana \(16\/11 a 22\/11\): R\$\s420,00 de R\$\s635,00/);
   assert.match(t, /restam R\$\s215,00/);
+});
+
+test("o período aparece mesmo sem teto configurado", () => {
+  /* Chegando todo dia, a mensagem precisa dizer de que semana fala: na
+     segunda, zero é semana nova; no domingo, é semana sem gasto. */
+  const S = estado([{ id: "m0", data: "2026-11-01", desc: "marco", valor: 0,
+    tipo: "d", cat: "out", conta: "cc", ok: true }]);
+  const t = Core.resumoTexto(Core.resumoDiario(S, [compra({ valor: 5000 })], "2026-11-18"));
+  assert.match(t, /Semana \(16\/11 a 22\/11\): R\$\s50,00 no cartão\./);
 });
 
 test("estourado, o texto avisa em vez de dizer quanto resta", () => {

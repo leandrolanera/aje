@@ -409,10 +409,15 @@ var Core = (function () {
        semana freia. */
     const s = r.semana;
     if (s && (s.teto || s.gasto)) {
+      /* O período vai explícito porque a mensagem chega todo dia: sem ele,
+         na segunda não dá para saber se o valor zerado é semana nova ou
+         semana parada, e no domingo não dá para saber quanto ainda falta
+         durar. */
+      const periodo = "Semana (" + ddmm(s.de) + " a " + ddmm(s.ate) + "): ";
       linhas.push(s.teto
-        ? "Semana: " + money(s.gasto) + " de " + money(s.teto) + " — "
+        ? periodo + money(s.gasto) + " de " + money(s.teto) + " — "
           + (s.estourou ? "estourou " + money(-s.resta) : "restam " + money(s.resta)) + "."
-        : "Semana: " + money(s.gasto) + " no cartão.");
+        : periodo + money(s.gasto) + " no cartão.");
     }
 
     if (r.vermelho) {
