@@ -288,6 +288,7 @@ const opening=c=>Core.opening(S,c);
 const balanceBefore=(d,c,onlyOk)=>Core.balanceBefore(S,pluggyTx,d,c,onlyOk);
 const realNow=c=>Core.realNow(S,pluggyTx,c);
 const monthSeries=(y,m,c)=>Core.monthSeries(S,pluggyTx,y,m,c);
+const gastoDaSemana=()=>Core.gastoDaSemana(S,pluggyTx);
 const pluggyBillEntries=()=>Core.pluggyBillEntries(S,pluggyTx);
 const contaFatura=()=>Core.contaFatura(S);
 const {FATURA_DIA,FATURA_FECHA,faturaDe,vencDe}=Core;
@@ -373,7 +374,13 @@ function viewGeral(){
    +'<div class="placar-b"><span class="placar-v">'+money(realNow(c))+'</span><span class="placar-l">Saldo hoje</span></div>'
    +'<div class="placar-b sec"><span class="placar-v'+(endBal<0?" baixo":"")+'">'+money(endBal)+'</span><span class="placar-l">Fim de '+MESC[cur.m]+'</span></div>'
    +'<div class="placar-b sec"><span class="placar-v'+(mn.proj<0?" baixo":"")+'">'+money(mn.proj)+'</span><span class="placar-l">Menor saldo · '+fmtShort(mn.key)+'</span></div></section>';
+  const sem=gastoDaSemana();
   const kpis='<section class="kpis">'
+   /* A semana vem primeiro entre os indicadores: é o único número aqui que
+      ainda muda uma decisão hoje. Os outros três descrevem o mês, que já
+      aconteceu ou já está contratado. Só aparece com teto definido — sem
+      teto não há o que comparar, e um número solto viraria ruído. */
+   +(sem.teto?'<div class="kpi"><span class="l">Semana no cartão</span><span class="v '+(sem.estourou?"neg":"")+'">'+money(sem.gasto)+'</span><span class="s">'+(sem.estourou?"estourou "+money(-sem.resta):"restam "+money(sem.resta)+" de "+money(sem.teto))+'</span><div class="bar"><b style="width:'+pct(sem.gasto,sem.teto)+'%;background:var(--sai-tinta)"></b></div></div>':"")
    +'<div class="kpi"><span class="l">Receitas do mês</span><span class="v pos">'+money(rr)+'</span><span class="s">de '+money(rp)+' previstos</span><div class="bar"><b style="width:'+pct(rr,rp)+'%;background:var(--entra-tinta)"></b></div></div>'
    +'<div class="kpi"><span class="l">Despesas do mês</span><span class="v neg">'+money(dr)+'</span><span class="s">de '+money(dp)+' previstas</span><div class="bar"><b style="width:'+pct(dr,dp)+'%;background:var(--sai-tinta)"></b></div></div>'
    +'<div class="kpi"><span class="l">Sobra prevista</span><span class="v '+(rp-dp<0?"neg":"pos")+'">'+(rp-dp>=0?"+":"−")+money(Math.abs(rp-dp))+'</span><span class="s">Receitas menos despesas de '+MES[cur.m]+'</span></div></section>';

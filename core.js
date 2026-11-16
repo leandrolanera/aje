@@ -265,6 +265,54 @@ var Core = (function () {
     return { ym, start, n, days, list, substituidas: subs, open: openP };
   }
 
+  /* ---------- contador semanal ---------- */
+
+  /*
+   * Quanto já foi gasto no cartão nesta semana.
+   *
+   * Existe porque comprar só no crédito esconde o custo: ele aparece na
+   * fatura 20 a 50 dias depois, quando a decisão já não tem volta. O
+   * contador traz o número para o dia da decisão, que é o único em que ele
+   * ainda muda alguma coisa.
+   *
+   * Mede COMPRA, não fatura. Pagar a fatura não é gastar — as compras já
+   * foram contadas no dia de cada uma, e somar a liquidação dobraria tudo.
+   * É a mesma regra do `gastos` do resumo diário.
+   */
+
+  /* Contas de cartão que o contador mede. Hoje só o Nubank, que é por onde
+     passa todo o consumo. Entrando outro cartão sincronizado, é aqui. */
+  const CONTAS_CARTAO = ["nubank"];
+  const ehCompraCartao = t => t.tipo === "d" && CONTAS_CARTAO.indexOf(t.conta) >= 0
+    && !t.pagamento && !t.isFatura;
+
+  /*
+   * Semana de segunda a domingo, e não janela móvel de sete dias: "quanto
+   * ainda posso gastar" só é respondível com um ponto de reinício. Janela
+   * móvel nunca zera, e um número que nunca zera não vira decisão.
+   */
+  function semanaDe(hojeISO) {
+    const dow = (parse(hojeISO).getDay() + 6) % 7;   /* 0 = segunda */
+    return { de: addDays(hojeISO, -dow), ate: addDays(hojeISO, 6 - dow) };
+  }
+
+  function gastoDaSemana(S, pluggyTx, hojeISO) {
+    const hoje = hojeISO || todayISO();
+    const sem = semanaDe(hoje);
+    const itens = everyTx(S, pluggyTx)
+      .filter(t => ehCompraCartao(t) && t.data >= sem.de && t.data <= sem.ate);
+    const gasto = itens.reduce((s, t) => s + t.valor, 0);
+    /* O teto mora no estado, e não no código: ele muda conforme a dívida
+       encolhe, e mudar não pode exigir um deploy. Sem teto configurado o
+       contador ainda informa o gasto — só não julga. */
+    const teto = S.tetoSemanal || 0;
+    return {
+      de: sem.de, ate: sem.ate, gasto, teto, compras: itens.length,
+      resta: teto ? teto - gasto : null,
+      estourou: teto ? gasto > teto : false
+    };
+  }
+
   /* ---------- resumo diário ---------- */
 
   /*
@@ -338,6 +386,7 @@ var Core = (function () {
       menorSaldoEm: menor.key,
       saldoFimDoMes: ser.days[ser.n - 1].proj,
       fimDaJanela: janela[janela.length - 1].key,
+      semana: gastoDaSemana(S, pluggyTx, hoje),
       diasRestantes, semanasRestantes,
       porSemana: vermelho ? 0 : Math.floor(menor.proj / semanasRestantes),
       vermelho
@@ -354,6 +403,17 @@ var Core = (function () {
       : "Ontem não houve gasto registrado.");
 
     for (const i of r.itens.slice(0, 3)) linhas.push("• " + i.desc + " — " + money(i.valor));
+
+    /* O que resta na semana vem antes do saldo porque é o único número que
+       ainda muda uma decisão hoje. O saldo projetado informa; o resto da
+       semana freia. */
+    const s = r.semana;
+    if (s && (s.teto || s.gasto)) {
+      linhas.push(s.teto
+        ? "Semana: " + money(s.gasto) + " de " + money(s.teto) + " — "
+          + (s.estourou ? "estourou " + money(-s.resta) : "restam " + money(s.resta)) + "."
+        : "Semana: " + money(s.gasto) + " no cartão.");
+    }
 
     if (r.vermelho) {
       linhas.push("Atenção: o saldo fica negativo em " + ddmm(r.menorSaldoEm) +
@@ -376,6 +436,7 @@ var Core = (function () {
     everyTx, inicioControle, ehPagamentoFatura, faturasAtivas, mesesComFatura,
     substituidas, allTx, txs,
     opening, balanceBefore, realNow, monthSeries,
+    CONTAS_CARTAO, ehCompraCartao, semanaDe, gastoDaSemana,
     resumoDiario, resumoTexto
   };
 })();
