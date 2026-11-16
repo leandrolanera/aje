@@ -7,3 +7,4 @@
 # Dependências das funções de servidor (api/) — instaladas pelo Vercel no
 # deploy a partir do package.json/package-lock.json
 node_modules
+.env*
