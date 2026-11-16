@@ -54,10 +54,32 @@ Para ligar, três variáveis no projeto do Vercel, além das do Supabase:
 | `TELEGRAM_BOT_TOKEN` | token do bot, do @BotFather |
 | `TELEGRAM_CHAT_ID` | o chat que recebe |
 
+**Depois de criar ou editar qualquer uma delas, faça um redeploy.** O Vercel
+captura as variáveis no momento do build e a função roda com aquela cópia
+congelada — variável criada depois do último deployment existe no painel e
+não existe para o código. Foi exatamente assim que o primeiro briefing
+falhou: o token entrou antes do build, o chat id depois.
+
 O endpoint recusa tudo enquanto `CRON_SECRET` não existir, e falha com 500 —
 nunca em silêncio — se faltar token, chat ou banco. O Vercel não repete
 invocação de cron, então esse 500 no log é o único aviso de que a mensagem do
 dia não saiu.
+
+### Testar e diagnosticar
+
+```bash
+vercel link                          # uma vez por máquina
+vercel crons run /api/briefing       # dispara na hora
+vercel logs --deployment <url-prod>  # o motivo, quando falha
+```
+
+O `vercel crons run` dispara **como se fosse o cron**: o próprio Vercel envia
+a cópia do `CRON_SECRET` no cabeçalho. Não é preciso conhecer o segredo — o
+que é bom, porque gravado como *Secret* ele não pode mais ser lido.
+
+`vercel env ls` mostra em quais ambientes cada variável existe e **quando foi
+criada**. Comparar essa data com a idade do deployment é o diagnóstico mais
+rápido para "configurei e não funcionou".
 
 **O teto semanal** vem de `tetoSemanal` no estado (em centavos), não do
 código: ele muda conforme a dívida encolhe. Sem ele, o contador informa o
