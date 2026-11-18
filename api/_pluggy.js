@@ -2,7 +2,6 @@
 /*
  * Módulo compartilhado entre pluggy-webhook.js e pluggy-sync.js — não é um
  * endpoint: o prefixo `_` é o que faz o Vercel não expor o arquivo como rota.
- * O fallback em netlify/functions/ também importa daqui.
  *
  * Tipo (despesa/receita) sai do campo `type` da Pluggy (DEBIT/CREDIT), que
  * não depende de convenção. Conferido contra o extrato real do Nubank: compra
