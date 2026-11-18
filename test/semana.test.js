@@ -86,6 +86,43 @@ test("estorno no cartão não vira gasto", () => {
   assert.equal(Core.gastoDaSemana(estado(), pg, "2026-11-18").gasto, 10000);
 });
 
+/* ---------- parcelamento ---------- */
+
+test("parcela de compra antiga não é gasto desta semana", () => {
+  /* A 10/12 chega datada deste mês porque é quando é cobrada, mas o
+     compromisso é de meses atrás e já está nas faturas contratadas sobre as
+     quais o teto foi calculado. Contá-la é contar duas vezes — foi o que
+     inflou uma semana real de R$ 242,60 para R$ 363,50. */
+  const pg = [
+    compra({ valor: 5810, desc: "Supermercado" }),
+    compra({ valor: 3574, desc: "Mercadolivre", parcela: 10, total: 12 }),
+    compra({ valor: 5716, desc: "Mapcon", parcela: 3, total: 3 }),
+    compra({ data: "2026-11-22", valor: 2800, desc: "Ticketmaster", parcela: 3, total: 6 })
+  ];
+  assert.equal(Core.gastoDaSemana(estado([], 63500), pg, "2026-11-18").gasto, 5810);
+});
+
+test("a primeira parcela conta, porque o caixa sai agora", () => {
+  const pg = [compra({ valor: 17247, desc: "Tabacaria", parcela: 1, total: 3 })];
+  const r = Core.gastoDaSemana(estado([], 63500), pg, "2026-11-18");
+  assert.equal(r.gasto, 17247);
+});
+
+test("parcelamento novo é reportado pelo compromisso inteiro", () => {
+  /* R$ 172,47 no caixa, mas R$ 517,41 de dívida assumida. É o total que a
+     decisão custou, e é ele que precisa aparecer. */
+  const pg = [compra({ valor: 17247, desc: "Tabacaria", parcela: 1, total: 3 })];
+  const r = Core.gastoDaSemana(estado([], 63500), pg, "2026-11-18");
+  assert.deepEqual(r.parcelamentos, [
+    { desc: "Tabacaria", parcelas: 3, parcela: 17247, total: 51741 }
+  ]);
+});
+
+test("compra à vista não vira parcelamento", () => {
+  const pg = [compra({ valor: 5810, parcela: 1, total: 1 }), compra({ valor: 1000 })];
+  assert.deepEqual(Core.gastoDaSemana(estado([], 63500), pg, "2026-11-18").parcelamentos, []);
+});
+
 /* ---------- o teto ---------- */
 
 test("com teto, diz quanto resta", () => {
@@ -154,6 +191,23 @@ test("sem teto, o orçamento por semana continua aparecendo", () => {
   const t = Core.resumoTexto(Core.resumoDiario(S, [compra({ valor: 8516 })], "2026-11-16"));
   assert.match(t, /Dá para gastar R\$\s.* por semana até/);
   assert.match(t, /Menor saldo previsto/);
+});
+
+test("o texto anuncia parcelamento novo pelo total", () => {
+  const S = estado([{ id: "m0", data: "2026-11-01", desc: "marco", valor: 0,
+    tipo: "d", cat: "out", conta: "cc", ok: true }], 63500);
+  S.accounts[0].saldoInicial = 500000;
+  const pg = [compra({ valor: 17247, desc: "LN MULTIMARCAS", parcela: 1, total: 3 })];
+  const t = Core.resumoTexto(Core.resumoDiario(S, pg, "2026-11-18"));
+  assert.match(t, /Atenção: parcelamento novo — LN MULTIMARCAS em 3× \(R\$\s517,41 no total\)\./);
+});
+
+test("sem parcelamento na semana, nenhuma linha de aviso", () => {
+  const S = estado([{ id: "m0", data: "2026-11-01", desc: "marco", valor: 0,
+    tipo: "d", cat: "out", conta: "cc", ok: true }], 63500);
+  S.accounts[0].saldoInicial = 500000;
+  const t = Core.resumoTexto(Core.resumoDiario(S, [compra({ valor: 5810 })], "2026-11-18"));
+  assert.ok(!/parcelamento novo/.test(t));
 });
 
 test("estourado, o texto avisa em vez de dizer quanto resta", () => {

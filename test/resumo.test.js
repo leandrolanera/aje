@@ -53,6 +53,20 @@ test("conta a compra do dia dela, não o agregado da fatura", () => {
   assert.equal(Core.resumoDiario(S, pg, "2026-10-25").gastos, 0, "no dia 25 não há gasto de ontem");
 });
 
+test("parcela de compra antiga não entra no gasto de ontem", () => {
+  /* Mesma regra do contador semanal: a 10/12 chega datada de hoje porque é
+     quando é cobrada, mas o compromisso é antigo. Duas regras diferentes
+     para as duas linhas da mesma mensagem seria pior que nenhuma. */
+  const S = estado([manual({ data: "2026-01-01", valor: 1 })]);
+  const pg = [
+    imp({ data: "2026-10-14", valor: 17247, desc: "Tabacaria", fatura: "2026-10", parcela: 1, total: 3 }),
+    imp({ data: "2026-10-14", valor: 3574, desc: "Mercadolivre", fatura: "2026-10", parcela: 10, total: 12 })
+  ];
+  const r = Core.resumoDiario(S, pg, "2026-10-15");
+  assert.equal(r.gastos, 17247, "só a primeira parcela, que é o caixa de agora");
+  assert.deepEqual(r.itens.map(i => i.desc), ["Tabacaria"]);
+});
+
 test("receita de ontem não entra nos gastos", () => {
   const S = estado([
     manual({ data: "2026-10-14", valor: 500000, tipo: "r", desc: "Salário" }),

@@ -195,7 +195,9 @@ const dedupPendentes=Core.dedupPendentes;
    cortado em silêncio e sumia da fatura. `raw` fica de fora (é o payload
    inteiro da Pluggy); dele só interessa o mês da fatura. */
 const PLUGGY_COLS="transaction_id,date,description,amount_cents,tipo,status,category_pluggy,"
- +"fatura:raw->creditCardMetadata->>billForecastDate";
+ +"fatura:raw->creditCardMetadata->>billForecastDate,"
+ +"parcela:raw->creditCardMetadata->>installmentNumber,"
+ +"total:raw->creditCardMetadata->>totalInstallments";
 async function fetchPluggyRows(uid){
   let rows=[];
   for(let from=0;;from+=1000){

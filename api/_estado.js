@@ -13,7 +13,9 @@ const Core = require("../core.js");
 /* Mesmas colunas que o navegador pede em app.js: `raw` fica de fora (é o
    payload inteiro da Pluggy) e dele só interessa o mês da fatura. */
 const COLS = "transaction_id,date,description,amount_cents,tipo,status,category_pluggy,"
-  + "fatura:raw->creditCardMetadata->>billForecastDate";
+  + "fatura:raw->creditCardMetadata->>billForecastDate,"
+  + "parcela:raw->creditCardMetadata->>installmentNumber,"
+  + "total:raw->creditCardMetadata->>totalInstallments";
 
 /* O PostgREST corta em 1000 linhas por requisição e o histórico passa disso;
    sem paginar, o resto sumiria da conta sem erro nenhum. */
