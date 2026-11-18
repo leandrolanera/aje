@@ -224,6 +224,24 @@ granularizar aqui.
   gatilho: ao receber a chamada, a função busca o estado atual direto na
   API da Pluggy com as credenciais guardadas, nunca confia em transação que
   viesse dentro do corpo do webhook.
+- **O webhook tem um piso: o sync agendado.** Em nov/26 o webhook parou de
+  chegar e as compras ficaram dois dias sem entrar — sem erro nenhum, só
+  dado velho, que é a pior forma de falhar. Agora `/api/pluggy-sync` roda
+  **duas vezes por dia** pelo cron do Vercel, às 8h e 23h UTC (~5h e ~20h de
+  Brasília): a primeira antes do briefing, para ele sair com dado fresco; a
+  segunda no fim do dia, para a tela mostrar o que foi gasto.
+  - São **duas entradas separadas** em `vercel.json`, e não um `0 */12`,
+    porque no plano Hobby cada cron só pode rodar **uma vez por dia** —
+    expressão mais frequente **falha o deploy**. Duas entradas no mesmo
+    caminho são previstas pela Vercel (é por isso que existe o cabeçalho
+    `x-vercel-cron-schedule`).
+  - O cron autentica com `Authorization: Bearer <CRON_SECRET>`, a terceira
+    forma aceita pelo endpoint. O resultado vai para o log porque a falha
+    silenciosa aqui é `transactions: 0`: a chamada devolve 200, mas a
+    conexão caiu e nada veio — indistinguível de um dia sem compras.
+  - Isso **não conserta o webhook**, só deixa de depender dele. Vale
+    investigar o cadastro em `https://api.pluggy.ai/webhooks` quando sobrar
+    tempo; com o piso no lugar, deixou de ser urgente.
 - Transações importadas são **só leitura** no app: sem botão de marcar
   realizado, sem edição. Editar criaria uma segunda versão do mesmo
   lançamento bancário, e o próximo sync reverteria a edição sem avisar.
