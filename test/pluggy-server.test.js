@@ -25,6 +25,10 @@ function instalaSupabaseFalso() {
     id: "supabase-falso", filename: "supabase-falso", loaded: true,
     exports: {
       createClient: () => ({
+        /* `pluggy-sync` valida a sessão do botão por aqui. Sem este ramo, um
+           Authorization qualquer estouraria no dublê e viraria 500 — quando
+           o certo é 403. */
+        auth: { getUser: async () => ({ data: null, error: new Error("token inválido") }) },
         from: tabela => ({
           upsert: async (linhas, opcoes) => { chamadas.push({ tabela, linhas, opcoes }); return { error: null }; }
         })
@@ -330,6 +334,43 @@ test("pluggy-sync roda o sync com a chave certa", async () => {
   await sync({ query: { key: "s3cr3t" } }, res);
   assert.equal(res.code, 200);
   assert.deepEqual(res.body, { accounts: 1, transactions: 1 });
+});
+
+test("pluggy-sync aceita o Bearer do cron do Vercel", async () => {
+  /* O webhook da Pluggy silenciou e as compras ficaram dois dias sem entrar.
+     O agendamento é o piso que cobre isso — e o cron só sabe mandar o
+     CRON_SECRET em Authorization. */
+  process.env.CRON_SECRET = "s3gr3d0-do-cron";
+  instalaSupabaseFalso();
+  instalaFetch({ pages: [{ results: [{ id: "a", type: "DEBIT", amount: 1, date: "2026-10-05", description: "X" }], next: null }] });
+  const { sync } = carrega();
+  const res = mkRes();
+  await sync({ query: {}, headers: { authorization: "Bearer s3gr3d0-do-cron" } }, res);
+  assert.equal(res.code, 200);
+  assert.deepEqual(res.body, { accounts: 1, transactions: 1 });
+});
+
+test("pluggy-sync recusa Bearer que não é do cron nem sessão válida", async () => {
+  process.env.CRON_SECRET = "s3gr3d0-do-cron";
+  instalaSupabaseFalso(); instalaFetch();
+  const { sync } = carrega();
+  for (const h of ["Bearer errado", "Bearer ", "", "s3gr3d0-do-cron"]) {
+    const res = mkRes();
+    await sync({ query: {}, headers: { authorization: h } }, res);
+    assert.equal(res.code, 403, "authorization " + JSON.stringify(h));
+  }
+});
+
+test("pluggy-sync com CRON_SECRET ausente não vira porta aberta", async () => {
+  /* Esquecer a variável não pode fazer "Bearer " casar com string vazia. */
+  delete process.env.CRON_SECRET;
+  instalaSupabaseFalso(); instalaFetch();
+  const { sync } = carrega();
+  for (const h of ["Bearer ", "Bearer qualquer"]) {
+    const res = mkRes();
+    await sync({ query: {}, headers: { authorization: h } }, res);
+    assert.equal(res.code, 403, "authorization " + JSON.stringify(h));
+  }
 });
 
 test("pluggy-sync devolve 500 e a mensagem quando a Pluggy falha", async () => {
