@@ -50,6 +50,11 @@ var Core = (function () {
       id: "pg-" + row.transaction_id, data: row.date, desc: row.description,
       valor: Math.abs(row.amount_cents), tipo: row.tipo, cat: mapCategory(row.category_pluggy),
       conta: "nubank", ok: row.status === "POSTED", imported: true, fatura: row.fatura || null,
+      /* Qual parcela de quantas. Serve ao contador semanal: parcela de
+         compra antiga não é gasto desta semana, e a primeira de um
+         parcelamento novo precisa ser anunciada. */
+      parcela: row.parcela ? Number(row.parcela) : null,
+      total: row.total ? Number(row.total) : null,
       /* Só o crédito: "Parcelamento de Fatura" também vem como Credit card
          payment, mas é débito — parcela que entra na fatura e tem que somar. */
       pagamento: row.tipo === "r" && (row.category_pluggy === "Credit card payment" || /^pagamento recebido/i.test(row.description || ""))
@@ -283,8 +288,26 @@ var Core = (function () {
   /* Contas de cartão que o contador mede. Hoje só o Nubank, que é por onde
      passa todo o consumo. Entrando outro cartão sincronizado, é aqui. */
   const CONTAS_CARTAO = ["nubank"];
+
+  /*
+   * Parcela de compra antiga NÃO é gasto desta semana. A 10/12 de uma compra
+   * de dezembro passado chega datada deste mês porque é quando ela é
+   * cobrada, mas o compromisso foi assumido meses atrás — e já está dentro
+   * das faturas contratadas sobre as quais o teto foi calculado. Contá-la de
+   * novo é contar duas vezes, e foi o que inflou uma semana de R$ 242,60
+   * para R$ 363,50.
+   *
+   * A primeira parcela conta: ali o dinheiro é comprometido agora, e é o
+   * impacto real no caixa do mês. O compromisso TOTAL vira aviso à parte —
+   * ver `parcelamentos` abaixo.
+   */
+  /* Só o que vem do cartão: a Pluggy data a parcela futura no mês em que ela
+     será cobrada, e é daí que nasce a confusão. Lançamento manual com
+     `rep: "p"` tem semântica própria e fica fora desta regra. */
+  const ehParcelaAntiga = t => !!t.imported && t.parcela > 1;
+
   const ehCompraCartao = t => t.tipo === "d" && CONTAS_CARTAO.indexOf(t.conta) >= 0
-    && !t.pagamento && !t.isFatura;
+    && !t.pagamento && !t.isFatura && !ehParcelaAntiga(t);
 
   /*
    * Semana de segunda a domingo, e não janela móvel de sete dias: "quanto
@@ -306,8 +329,21 @@ var Core = (function () {
        encolhe, e mudar não pode exigir um deploy. Sem teto configurado o
        contador ainda informa o gasto — só não julga. */
     const teto = S.tetoSemanal || 0;
+    /*
+     * Parcelamento aberto nesta semana. Fica fora do `gasto` — lá entra só a
+     * primeira parcela, que é o impacto no caixa — e vira aviso próprio,
+     * porque o número que importa aqui é outro: o compromisso inteiro.
+     *
+     * Existe porque parcelar é o mecanismo que torna a dívida perpétua: a
+     * cauda de parcelas só termina se parar de ser reabastecida, e um
+     * compromisso de R$ 517 que aparece como R$ 172 no contador não soa como
+     * o que é.
+     */
+    const parcelamentos = itens
+      .filter(t => t.parcela === 1 && t.total > 1)
+      .map(t => ({ desc: t.desc, parcelas: t.total, parcela: t.valor, total: t.valor * t.total }));
     return {
-      de: sem.de, ate: sem.ate, gasto, teto, compras: itens.length,
+      de: sem.de, ate: sem.ate, gasto, teto, compras: itens.length, parcelamentos,
       resta: teto ? teto - gasto : null,
       estourou: teto ? gasto > teto : false
     };
@@ -345,7 +381,8 @@ var Core = (function () {
        é o único registro daquela despesa. */
     const cobertos = mesesComFatura(S, pluggyTx);
     const doDia = everyTx(S, pluggyTx).filter(t => t.data === ontem && t.tipo === "d"
-      && !t.pagamento && !(ehPagamentoFatura(t) && cobertos[t.data.slice(0, 7)]));
+      && !t.pagamento && !ehParcelaAntiga(t)
+      && !(ehPagamentoFatura(t) && cobertos[t.data.slice(0, 7)]));
     const gastos = doDia.reduce((s, t) => s + t.valor, 0);
     const itens = doDia.slice().sort((a, b) => b.valor - a.valor)
       .map(t => ({ desc: t.desc, valor: t.valor, cat: t.cat, importado: !!t.imported }));
@@ -418,6 +455,17 @@ var Core = (function () {
         ? periodo + money(s.gasto) + " de " + money(s.teto) + " — "
           + (s.estourou ? "estourou " + money(-s.resta) : "restam " + money(s.resta)) + "."
         : periodo + money(s.gasto) + " no cartão.");
+
+      /* Parcelar é o que torna a dívida perpétua, então o aviso vem logo
+         depois do contador — e mostra o compromisso inteiro, não a parcela,
+         porque é o total que a decisão de parcelar realmente custou. */
+      for (const p of s.parcelamentos.slice(0, 2)) {
+        linhas.push("Atenção: parcelamento novo — " + p.desc + " em " + p.parcelas
+          + "× (" + money(p.total) + " no total).");
+      }
+      if (s.parcelamentos.length > 2) {
+        linhas.push("E mais " + (s.parcelamentos.length - 2) + " parcelamento(s) nesta semana.");
+      }
     }
 
     if (r.vermelho) {
