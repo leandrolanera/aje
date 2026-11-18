@@ -105,8 +105,5 @@ gasto e não compara.
   Vercel de transformá-lo numa rota. `package.json` na raiz é só a
   dependência delas (`@supabase/supabase-js`); o site em si continua sem
   build.
-- `netlify/`, `netlify.toml`: hospedagem anterior, mantida por ora como
-  alternativa. Fica fora do deploy pelo `.vercelignore` — se fosse junto, o
-  Vercel serviria esse código como arquivo estático.
 
 
