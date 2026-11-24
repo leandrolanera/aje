@@ -345,34 +345,87 @@ var Core = (function () {
     return { de: addDays(hojeISO, -dow), ate: addDays(hojeISO, 6 - dow) };
   }
 
-  function gastoDaSemana(S, pluggyTx, hojeISO) {
-    const hoje = hojeISO || todayISO();
-    const sem = semanaDe(hoje);
+  /*
+   * A primitiva: gasto no cartão num intervalo qualquer. O contador da
+   * semana corrente e o fechamento da semana encerrada são o mesmo cálculo
+   * em datas diferentes — duas implementações divergiriam na primeira regra
+   * nova (foi o que aconteceu entre o "ontem você gastou" e o contador, e
+   * as duas linhas da mesma mensagem passaram a discordar).
+   */
+  function gastoNoPeriodo(S, pluggyTx, de, ate) {
     const itens = everyTx(S, pluggyTx)
-      .filter(t => ehCompraCartao(t) && t.data >= sem.de && t.data <= sem.ate);
-    const gasto = itens.reduce((s, t) => s + t.valor, 0);
-    /* O teto mora no estado, e não no código: ele muda conforme a dívida
-       encolhe, e mudar não pode exigir um deploy. Sem teto configurado o
-       contador ainda informa o gasto — só não julga. */
+      .filter(t => ehCompraCartao(t) && t.data >= de && t.data <= ate);
     const teto = S.tetoSemanal || 0;
+    const gasto = itens.reduce((s, t) => s + t.valor, 0);
     /*
-     * Parcelamento aberto nesta semana. Fica fora do `gasto` — lá entra só a
+     * Parcelamento aberto no período. Fica fora do `gasto` — lá entra só a
      * primeira parcela, que é o impacto no caixa — e vira aviso próprio,
      * porque o número que importa aqui é outro: o compromisso inteiro.
      *
      * Existe porque parcelar é o mecanismo que torna a dívida perpétua: a
      * cauda de parcelas só termina se parar de ser reabastecida, e um
-     * compromisso de R$ 517 que aparece como R$ 172 no contador não soa como
-     * o que é.
+     * compromisso de R$ 517 que aparece como R$ 172 no contador não soa
+     * como o que é.
      */
     const parcelamentos = itens
       .filter(t => t.parcela === 1 && t.total > 1)
       .map(t => ({ desc: t.desc, parcelas: t.total, parcela: t.valor, total: t.valor * t.total }));
     return {
-      de: sem.de, ate: sem.ate, gasto, teto, compras: itens.length, parcelamentos,
+      de, ate, gasto, teto, compras: itens.length, parcelamentos, itens,
       resta: teto ? teto - gasto : null,
       estourou: teto ? gasto > teto : false
     };
+  }
+
+  function gastoDaSemana(S, pluggyTx, hojeISO) {
+    const sem = semanaDe(hojeISO || todayISO());
+    /* O teto mora no estado, e não no código: ele muda conforme a dívida
+       encolhe, e mudar não pode exigir um deploy. Sem teto configurado o
+       contador ainda informa o gasto — só não julga. */
+    const r = gastoNoPeriodo(S, pluggyTx, sem.de, sem.ate);
+    delete r.itens;   /* detalhe interno; quem exibe não precisa da lista */
+    return r;
+  }
+
+  /*
+   * O fechamento da semana que encerrou, para o briefing de segunda-feira.
+   *
+   * O contador diário responde "quanto ainda posso gastar". Isto responde
+   * outra coisa: "como foi". A comparação com a semana anterior é o que faz
+   * dele um fechamento e não um repeteco — sozinho, "R$ 877" não diz se a
+   * coisa melhorou; ao lado de "anterior: R$ 85", diz.
+   *
+   * Devolve `null` fora de segunda-feira. O fechamento é um evento, não um
+   * estado: repetido todo dia viraria ruído e a pessoa pararia de ler.
+   */
+  function fechamentoSemana(S, pluggyTx, hojeISO) {
+    const hoje = hojeISO || todayISO();
+    if (parse(hoje).getDay() !== 1) return null;
+
+    const ate = addDays(semanaDe(hoje).de, -1);        /* domingo passado */
+    const de = addDays(ate, -6);                       /* segunda passada */
+    const r = gastoNoPeriodo(S, pluggyTx, de, ate);
+    const anterior = gastoNoPeriodo(S, pluggyTx, addDays(de, -7), addDays(de, -1));
+
+    /* Top 3 por categoria. A cauda raramente muda uma decisão, e a mensagem
+       chega no Telegram — cada linha a mais custa atenção. */
+    const porCat = {};
+    for (const t of r.itens) porCat[t.cat] = (porCat[t.cat] || 0) + t.valor;
+    /* O nome vem de `S.categories`, não de uma tabela aqui: a lista é do
+       usuário e ele pode renomear. Sem correspondência, mostra o id — pior
+       que o nome, melhor que uma linha em branco. */
+    const nomeDe = id => ((S.categories || []).find(c => c.id === id) || {}).nome || id;
+    const categorias = Object.keys(porCat)
+      .map(cat => ({ cat, nome: nomeDe(cat), valor: porCat[cat] }))
+      .sort((a, b) => b.valor - a.valor).slice(0, 3);
+
+    delete r.itens;
+    return Object.assign(r, {
+      categorias,
+      porDia: r.compras ? Math.round(r.gasto / 7) : 0,
+      gastoAnterior: anterior.gasto,
+      comprasAnterior: anterior.compras
+    });
   }
 
   /* ---------- resumo diário ---------- */
@@ -450,6 +503,7 @@ var Core = (function () {
       saldoFimDoMes: ser.days[ser.n - 1].proj,
       fimDaJanela: janela[janela.length - 1].key,
       semana: gastoDaSemana(S, pluggyTx, hoje),
+      fechamento: fechamentoSemana(S, pluggyTx, hoje),
       diasRestantes, semanasRestantes,
       porSemana: vermelho ? 0 : Math.floor(menor.proj / semanasRestantes),
       vermelho
@@ -461,6 +515,34 @@ var Core = (function () {
   function resumoTexto(r) {
     const ddmm = k => k.slice(8, 10) + "/" + k.slice(5, 7);
     const linhas = [];
+
+    /*
+     * O fechamento abre a mensagem de segunda-feira: é o único dia em que
+     * existe, e enterrá-lo embaixo do gasto de ontem — que numa segunda é
+     * o domingo, quase sempre pequeno — desperdiçaria o momento em que a
+     * informação ainda pode mudar a semana que começa.
+     */
+    const f = r.fechamento;
+    if (f && (f.gasto || f.teto)) {
+      linhas.push("Fechamento de " + ddmm(f.de) + " a " + ddmm(f.ate));
+      linhas.push(f.teto
+        ? money(f.gasto) + " de " + money(f.teto) + " — "
+          + (f.estourou ? "estourou " + money(-f.resta) : "sobraram " + money(f.resta)) + "."
+        : money(f.gasto) + " no cartão.");
+      if (f.categorias.length) {
+        linhas.push("• " + f.categorias.map(c => c.nome + " " + money(c.valor)).join(" · "));
+      }
+      /* A comparação é o que faz disto um fechamento: sozinho, um número
+         não diz se a coisa melhorou. */
+      linhas.push("• " + f.compras + " compras, " + money(f.porDia) + "/dia"
+        + " · semana anterior: " + money(f.gastoAnterior));
+      for (const p of f.parcelamentos.slice(0, 2)) {
+        linhas.push("• Parcelamento aberto: " + p.desc + " em " + p.parcelas
+          + "× (" + money(p.total) + ")");
+      }
+      linhas.push("");
+    }
+
     linhas.push(r.gastos > 0
       ? "Ontem você gastou " + money(r.gastos) + "."
       : "Ontem não houve gasto registrado.");
@@ -531,7 +613,8 @@ var Core = (function () {
     everyTx, inicioControle, ehPagamentoFatura, faturasAtivas, mesesComFatura,
     substituidas, allTx, txs,
     opening, balanceBefore, realNow, monthSeries,
-    CONTAS_CARTAO, ehCompraCartao, semanaDe, gastoDaSemana,
+    CONTAS_CARTAO, ehCompraCartao, semanaDe, gastoNoPeriodo, gastoDaSemana,
+    fechamentoSemana,
     resumoDiario, resumoTexto
   };
 })();
