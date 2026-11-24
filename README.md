@@ -38,6 +38,21 @@ Semana: R$ 85,16 de R$ 635,00 — restam R$ 549,84.
 Atenção: o saldo fica negativo em 24/11 (-R$ 472,32).
 ```
 
+**Às segundas**, a mensagem abre com o fechamento da semana que encerrou:
+
+```
+Fechamento de 16/11 a 22/11
+R$ 877,16 de R$ 635,00 — estourou R$ 242,16.
+• Mercado R$ 395,00 · Outras despesas R$ 230,65 · Restaurantes R$ 118,38
+• 23 compras, R$ 125,31/dia · semana anterior: R$ 110,00
+• Parcelamento aberto: LN MULTIMARCAS em 3× (R$ 517,41)
+```
+
+A comparação com a semana anterior é o que faz dele um fechamento e não um
+repeteco do contador: sozinho, um número não diz se a coisa melhorou. E ele
+só aparece na segunda — fechamento é evento, não estado; repetido todo dia
+viraria ruído.
+
 Quem monta é [`api/briefing.js`](api/briefing.js), agendado no `vercel.json`.
 A conta vem do `core.js` — o mesmo arquivo que desenha as telas —, então o
 número da mensagem é o mesmo do app por construção, não por coincidência.
