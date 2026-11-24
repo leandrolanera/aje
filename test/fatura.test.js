@@ -240,7 +240,10 @@ test("mapPluggyRow traduz a linha do Supabase para o formato do app", () => {
   const r = a.mapPluggyRow({
     transaction_id: "abc", date: "2026-10-05", description: "iFood",
     amount_cents: 4590, tipo: "d", status: "POSTED",
-    category_pluggy: "Restaurante", fatura: "2026-10"
+    /* Nome como a Pluggy manda de verdade — em inglês. O fixture antigo
+       dizia "Restaurante" e passava por acaso, porque todo desconhecido
+       caía na mesma categoria. */
+    category_pluggy: "Food delivery", fatura: "2026-10"
   });
   assert.equal(r.id, "pg-abc", "prefixo evita colisão com id de lançamento manual");
   assert.equal(r.valor, 4590);
@@ -283,12 +286,27 @@ test("'Crédito de parcelamento' não é pagamento: abate a fatura", () => {
   assert.equal(r.pagamento, false);
 });
 
-test("mapCategory usa o mapa e cai em cartão de crédito quando não conhece", () => {
+test("mapCategory conhece os nomes que a Pluggy realmente manda", () => {
+  /* Em inglês. A primeira versão do mapa usava português e não casava com
+     nada — todo o cartão virava uma categoria só. */
   const a = loadApp();
-  assert.equal(a.mapCategory("Supermercado"), "mer");
-  assert.equal(a.mapCategory("Restaurante"), "res");
-  assert.equal(a.mapCategory("Categoria Que Não Existe"), "car");
-  assert.equal(a.mapCategory(null), "car");
+  assert.equal(a.mapCategory("Groceries"), "mer");
+  assert.equal(a.mapCategory("Eating out"), "res");
+  assert.equal(a.mapCategory("Food delivery"), "res");
+  assert.equal(a.mapCategory("Pharmacy"), "sau");
+  assert.equal(a.mapCategory("Taxi and ride-hailing"), "tra");
+  assert.equal(a.mapCategory("Digital services"), "ass");
+});
+
+test("encargo do cartão vai para Cartão de crédito; compra, não", () => {
+  /* Com o mapa funcionando, "car" passa a significar o que o cartão cobra
+     por ser cartão. Compra sem categoria conhecida é compra. */
+  const a = loadApp();
+  assert.equal(a.mapCategory("Tax on financial operations"), "car");
+  assert.equal(a.mapCategory("Interests charged"), "car");
+  assert.equal(a.mapCategory("Loans and financing"), "car");
+  assert.equal(a.mapCategory("Categoria Que Não Existe"), "out");
+  assert.equal(a.mapCategory(null), "out");
 });
 
 test("todo destino do mapa de categorias existe na lista do app", () => {
@@ -297,7 +315,21 @@ test("todo destino do mapa de categorias existe na lista do app", () => {
   for (const [origem, destino] of Object.entries(a.PLUGGY_CAT_MAP)) {
     assert.ok(ids.has(destino), `"${origem}" aponta para "${destino}", que não existe em CATS`);
   }
-  assert.ok(ids.has("car"), "o fallback precisa existir");
+  assert.ok(ids.has("out"), "o fallback precisa existir");
+});
+
+test("as categorias vistas nos dados reais estão todas mapeadas", () => {
+  /* Lista tirada do banco em 23/11. Serve de rede: categoria da Pluggy que
+     apareça aqui e não esteja no mapa vira "Outras despesas" em silêncio. */
+  const a = loadApp();
+  const vistas = ["Groceries", "Digital services", "Transfers", "Shopping",
+    "Taxi and ride-hailing", "Services", "Loans and financing",
+    "Tax on financial operations", "Food delivery", "Pharmacy", "Eating out",
+    "Tickets", "Insurance", "Telecommunications", "Houseware", "Car rental",
+    "Public transportation", "Clothing", "Late payment and overdraft costs",
+    "Bus tickets", "Interests charged", "Leisure", "Wellness and fitness"];
+  const faltando = vistas.filter(c => !(c in a.PLUGGY_CAT_MAP));
+  assert.deepEqual(faltando, [], "categorias reais fora do mapa");
 });
 
 /* ---------- marcação visual ---------- */

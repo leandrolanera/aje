@@ -36,14 +36,40 @@ var Core = (function () {
 
   /* ---------- categorias da Pluggy ---------- */
 
-  /* Tabela pequena de propósito, cresce aos poucos com categorias reais
-     vistas nos dados. O fallback é "car" (Cartão de crédito), não "out":
-     toda linha que passa por aqui já é uma transação de cartão. */
+  /*
+   * As categorias da Pluggy chegam em INGLÊS. A primeira versão deste mapa
+   * usava nomes em português ("Supermercado", "Restaurante") e por isso não
+   * casava com nada: toda compra importada caía no fallback, e a tela de
+   * despesas por categoria mostrava o cartão inteiro como uma coisa só.
+   * Os nomes abaixo foram tirados dos dados reais, não do palpite.
+   *
+   * O fallback é "out" (Outras despesas), não "car". Com o mapa
+   * funcionando, "Cartão de crédito" passa a significar *encargo do
+   * cartão* — IOF, juros, multa, renegociação —, e não "comprei alguma
+   * coisa". Categoria nova desconhecida é uma compra como outra qualquer.
+   */
   const PLUGGY_CAT_MAP = {
-    "Supermercado": "mer", "Restaurante": "res", "Transporte": "tra",
-    "Saúde": "sau", "Farmácia": "sau", "Lazer": "laz", "Assinaturas e serviços": "ass"
+    /* comida */
+    "Groceries": "mer", "Food delivery": "res", "Eating out": "res",
+    /* saúde */
+    "Pharmacy": "sau", "Wellness and fitness": "sau", "Health": "sau",
+    /* transporte */
+    "Taxi and ride-hailing": "tra", "Public transportation": "tra",
+    "Bus tickets": "tra", "Car rental": "tra", "Gas stations": "tra",
+    /* assinaturas e contas */
+    "Digital services": "ass", "Telecommunications": "ass",
+    /* lazer */
+    "Leisure": "laz", "Tickets": "laz",
+    /* casa */
+    "Houseware": "mor",
+    /* o que o cartão cobra por ser cartão — não é consumo */
+    "Tax on financial operations": "car", "Interests charged": "car",
+    "Late payment and overdraft costs": "car", "Loans and financing": "car",
+    /* consumo sem categoria própria no app */
+    "Shopping": "out", "Clothing": "out", "Services": "out",
+    "Insurance": "out", "Transfers": "out"
   };
-  const mapCategory = c => PLUGGY_CAT_MAP[c] || "car";
+  const mapCategory = c => PLUGGY_CAT_MAP[c] || "out";
 
   function mapPluggyRow(row) {
     return {
